@@ -49,16 +49,22 @@ INSTALLED_APPS += [
 # Local apps
 INSTALLED_APPS += [
     'api',
-    'authentication',
+    'erp',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'erp.middleware.CORSSecurityMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'erp.middleware.JWTAuthMiddleware',
+    'erp.middleware.APIRateLimitMiddleware',
+    'erp.middleware.RoleBasedAccessMiddleware',
+    'erp.middleware.PlatformAccessMiddleware',
+    'erp.middleware.SecurityLoggingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -136,7 +142,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
-AUTH_USER_MODEL = 'authentication.User'
+AUTH_USER_MODEL = 'erp.UserAccount'
 
 # Django Rest Framework Configuration
 REST_FRAMEWORK = {
@@ -205,3 +211,88 @@ FAST2SMS_FLASH = '1'  # 1 for flash SMS, 0 for normal SMS
 # Device Detection Settings
 MAX_LOGIN_DEVICES = 5  # Maximum allowed active devices per user
 DEVICE_SESSION_TIMEOUT = 30  # Days before device session expires
+
+# Media files (User uploads - KYC documents, images)
+import os
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Security Settings for Media Files
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+
+# Allowed file extensions for uploads
+ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+
+# Encryption key for sensitive data
+ENCRYPTION_KEY_FILE = os.path.join(BASE_DIR, '.encryption_key')
+
+# OTP Configuration
+OTP_EXPIRY_MINUTES = 5
+OTP_MAX_ATTEMPTS = 3
+OTP_BLOCK_MINUTES = 15
+
+# Login Security
+LOGIN_MAX_ATTEMPTS = 3
+LOGIN_BLOCK_MINUTES = 15
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {asctime} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'erp.log',
+            'maxBytes': 1024*1024*10,  # 10MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'security_file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'security.log',
+            'maxBytes': 1024*1024*10,  # 10MB
+            'backupCount': 10,
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'erp': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'erp.middleware': {
+            'handlers': ['security_file', 'console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['security_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
+
+# Create logs directory if it doesn't exist
+import os
+os.makedirs(BASE_DIR / 'logs', exist_ok=True)
