@@ -1,3 +1,8 @@
 {
-    "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [
+    {
+      "path": "D:/credbuzz/credbuzz-backend/credbuzz-backend",
+      "interpreter": "D:/credbuzz/credbuzz-backend/credbuzz-backend/credbuzz_backend_venv/Scripts/python.exe"
+    }
+  ]
 }

@@ -20,12 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-*)rz@xy9peusdj(myb42n5)u#w%dv_=c29s#)m!h_s0xjr_98v'
+SECRET_KEY = 'django-insecure--n5^^z_c=g2#0&+^3#j)6)v=n@-f8_yw4r8z52&jq%+$zbf((7'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -39,21 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 ]
 
-# Third-party apps
-INSTALLED_APPS += [
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'corsheaders',
-]
-
-# Local apps
-INSTALLED_APPS += [
-    'api',
-    'authentication',
-]
-
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -134,74 +120,3 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Custom User Model
-AUTH_USER_MODEL = 'authentication.User'
-
-# Django Rest Framework Configuration
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20
-}
-
-# JWT Configuration
-from datetime import timedelta
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'JTI_CLAIM': 'jti',
-}
-
-# CORS Configuration (for frontend API calls)
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React default
-    "http://127.0.0.1:3000",
-    "http://localhost:8080",  # Vue default
-    "http://127.0.0.1:8080",
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
-# For development, allow all origins
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-
-# Email Configuration (SMTP)
-import os
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'hetglathiya875@gmail.com')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'gwqu mglf txtu czcv')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-# Fast2SMS Configuration
-FAST2SMS_API_KEY = os.getenv('FAST2SMS_API_KEY', 'U1paqvr34o8HDNbfOxWyZRCteiczXTgMduP9EL2BV05JhFA7mjp1KIBRGMPoYavWwlf82kLz5Fe0yTc3')
-FAST2SMS_BASE_URL = 'https://www.fast2sms.com/dev/bulkV2'
-FAST2SMS_ROUTE = 'otp'  # or 'q' for quick route
-FAST2SMS_FLASH = '1'  # 1 for flash SMS, 0 for normal SMS
-
-# Device Detection Settings
-MAX_LOGIN_DEVICES = 5  # Maximum allowed active devices per user
-DEVICE_SESSION_TIMEOUT = 30  # Days before device session expires
