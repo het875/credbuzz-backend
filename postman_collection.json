@@ -1,0 +1,760 @@
+{
+  "info": {
+    "name": "CredbuzzPay ERP API Collection",
+    "description": "Complete Postman collection for all CredbuzzPay ERP System API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0",
+    "contact": {
+      "name": "CredbuzzPay Development Team",
+      "email": "dev@credbuzz.com"
+    }
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_code",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register - Initiate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('user_code', jsonData.user_code);",
+                  "    console.log('User Code saved:', jsonData.user_code);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"SecurePass@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/initiate",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "initiate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register - Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_code\": \"{{user_code}}\",\n  \"email_otp\": \"123456\",\n  \"mobile_otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/verify-otp",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "verify-otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.access_token);",
+                  "    pm.environment.set('refresh_token', jsonData.refresh_token);",
+                  "    console.log('Tokens saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email_or_mobile\": \"testuser@example.com\",\n  \"password\": \"SecurePass@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email_or_mobile\": \"testuser@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgot-password",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password_reset_token\": \"your-reset-token\",\n  \"new_password\": \"NewSecurePass@456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/reset-password",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"old_password\": \"SecurePass@123\",\n  \"new_password\": \"NewSecurePass@456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/change-password",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/token/refresh",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "token",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "KYC",
+      "item": [
+        {
+          "name": "Submit Aadhaar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "user_code",
+                  "value": "{{user_code}}",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_number",
+                  "value": "123456789012",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_name",
+                  "value": "John Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_dob",
+                  "value": "1990-01-15",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_gender",
+                  "value": "male",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/aadhaar/submit",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kyc",
+                "aadhaar",
+                "submit"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit PAN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "user_code",
+                  "value": "{{user_code}}",
+                  "type": "text"
+                },
+                {
+                  "key": "pan_number",
+                  "value": "ABCDE1234F",
+                  "type": "text"
+                },
+                {
+                  "key": "pan_name",
+                  "value": "John Doe",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/pan/submit",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kyc",
+                "pan",
+                "submit"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get KYC Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/status/{{user_code}}",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kyc",
+                "status",
+                "{{user_code}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_code}}",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_code}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"gender\": \"male\",\n  \"dob\": \"1990-01-15\",\n  \"address_line1\": \"123 Main St\",\n  \"city\": \"New York\",\n  \"state\": \"NY\",\n  \"country\": \"USA\",\n  \"pincode\": \"100001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{user_code}}",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_code}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/?limit=20&offset=0",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Block User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Suspicious activity detected\",\n  \"block_duration_minutes\": 60\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/ABC123/block",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "ABC123",
+                "block"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Branches",
+      "item": [
+        {
+          "name": "Create Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branch_name\": \"Downtown Branch\",\n  \"address_line1\": \"123 Main St\",\n  \"city\": \"New York\",\n  \"state\": \"NY\",\n  \"country\": \"USA\",\n  \"pincode\": \"100001\",\n  \"phone\": \"+12125551234\",\n  \"email\": \"downtown@credbuzz.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/branches/",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "branches",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Branches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/branches/?limit=20&offset=0",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "branches",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit & Reporting",
+      "item": [
+        {
+          "name": "Get User Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/user/{{user_code}}/?limit=50&offset=0",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit",
+                "user",
+                "{{user_code}}",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Login Activity Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/login-activity/?user_code={{user_code}}&limit=50",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reports",
+                "login-activity",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "user_code",
+                  "value": "{{user_code}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get KYC Status Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/kyc-status/?limit=100",
+              "protocol": "http",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reports",
+                "kyc-status",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
