@@ -5,8 +5,66 @@ This model is completely custom without using Django's AbstractUser or AbstractB
 from django.db import models
 import hashlib
 import secrets
+import string
+import random
 from datetime import datetime, timedelta
 from django.utils import timezone
+
+
+class UserCodeGenerator:
+    """
+    Utility class to generate unique user codes.
+    Format: ABC001, XY1234, A0B221 (minimum 5 characters, alphanumeric)
+    """
+    
+    @staticmethod
+    def generate_code(length=6):
+        """Generate a random alphanumeric code"""
+        # Use uppercase letters and digits
+        characters = string.ascii_uppercase + string.digits
+        return ''.join(random.choices(characters, k=length))
+    
+    @classmethod
+    def generate_unique_code(cls, model_class, field_name='user_code', length=6, max_attempts=100):
+        """Generate a unique code that doesn't exist in the database"""
+        for _ in range(max_attempts):
+            code = cls.generate_code(length)
+            # Check if code already exists
+            if not model_class.objects.filter(**{field_name: code}).exists():
+                return code
+        # If we couldn't generate a unique code, try with longer length
+        return cls.generate_unique_code(model_class, field_name, length + 1, max_attempts)
+
+
+class RoleName:
+    """Role name constants for direct role reference in User model"""
+    DEVELOPER = 'DEVELOPER'
+    SUPER_ADMIN = 'SUPER_ADMIN'
+    ADMIN = 'ADMIN'
+    CLIENT = 'CLIENT'
+    END_USER = 'END_USER'
+    
+    CHOICES = [
+        (DEVELOPER, 'Developer'),
+        (SUPER_ADMIN, 'Super Admin'),
+        (ADMIN, 'Admin'),
+        (CLIENT, 'Client'),
+        (END_USER, 'End User'),
+    ]
+    
+    # Level mapping (lower = higher privilege)
+    LEVELS = {
+        DEVELOPER: 1,
+        SUPER_ADMIN: 2,
+        ADMIN: 3,
+        CLIENT: 4,
+        END_USER: 5,
+    }
+    
+    @classmethod
+    def get_level(cls, role_name):
+        """Get hierarchy level for a role"""
+        return cls.LEVELS.get(role_name, 999)
 
 
 class User(models.Model):
@@ -14,6 +72,15 @@ class User(models.Model):
     Custom User model with all fields defined manually
     """
     id = models.AutoField(primary_key=True)
+    
+    # Unique user code (e.g., ABC001, XY1234) - minimum 5 characters
+    user_code = models.CharField(
+        max_length=20, 
+        unique=True, 
+        blank=True,
+        help_text="Unique user code (auto-generated if not provided)"
+    )
+    
     email = models.EmailField(unique=True, max_length=255)
     username = models.CharField(unique=True, max_length=150)
     password_hash = models.CharField(max_length=256)  # Store hashed password
@@ -23,6 +90,14 @@ class User(models.Model):
     first_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
+    
+    # Direct role reference (for quick access, synced with UserRoleAssignment)
+    user_role = models.CharField(
+        max_length=20,
+        choices=RoleName.CHOICES,
+        default=RoleName.END_USER,
+        help_text="Primary role of the user"
+    )
     
     # Status fields
     is_active = models.BooleanField(default=True)
@@ -38,7 +113,13 @@ class User(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return self.email
+        return f"{self.user_code} - {self.email}"
+    
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate user_code if not provided"""
+        if not self.user_code:
+            self.user_code = UserCodeGenerator.generate_unique_code(User, 'user_code', length=6)
+        super().save(*args, **kwargs)
     
     @staticmethod
     def generate_salt():
@@ -86,6 +167,40 @@ class User(models.Model):
         Always return False. This is required by Django's authentication system.
         """
         return False
+    
+    @property
+    def role_level(self):
+        """Get the hierarchy level of user's role"""
+        return RoleName.get_level(self.user_role)
+    
+    @property
+    def is_developer(self):
+        """Check if user is a Developer"""
+        return self.user_role == RoleName.DEVELOPER
+    
+    @property
+    def is_super_admin(self):
+        """Check if user is a Super Admin or higher"""
+        return self.role_level <= RoleName.LEVELS[RoleName.SUPER_ADMIN]
+    
+    @property
+    def is_admin(self):
+        """Check if user is an Admin or higher"""
+        return self.role_level <= RoleName.LEVELS[RoleName.ADMIN]
+    
+    @property
+    def is_client(self):
+        """Check if user is a Client or higher"""
+        return self.role_level <= RoleName.LEVELS[RoleName.CLIENT]
+    
+    def can_manage_role(self, target_role):
+        """Check if user can manage/assign a target role"""
+        target_level = RoleName.get_level(target_role)
+        return self.role_level < target_level
+    
+    def can_manage_user(self, target_user):
+        """Check if user can manage another user based on role hierarchy"""
+        return self.role_level < target_user.role_level
 
 
 class PasswordResetToken(models.Model):

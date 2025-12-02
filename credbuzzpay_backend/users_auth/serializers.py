@@ -216,11 +216,13 @@ class UserSerializer(serializers.Serializer):
     Serializer for user details (read-only)
     """
     id = serializers.IntegerField(read_only=True)
+    user_code = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
     username = serializers.CharField(read_only=True)
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
     phone_number = serializers.CharField(read_only=True)
+    user_role = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_verified = serializers.BooleanField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
@@ -263,9 +265,11 @@ class UserListSerializer(serializers.Serializer):
     Serializer for user list with minimal data
     """
     id = serializers.IntegerField(read_only=True)
+    user_code = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
     username = serializers.CharField(read_only=True)
     full_name = serializers.CharField(read_only=True)
+    user_role = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
 

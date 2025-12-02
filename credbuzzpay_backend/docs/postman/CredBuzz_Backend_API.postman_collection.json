@@ -1,0 +1,1380 @@
+{
+	"info": {
+		"_postman_id": "credbuzz-rbac-collection",
+		"name": "CredBuzz Backend API",
+		"description": "Complete API collection for CredBuzz Backend including User Authentication and RBAC (Role-Based Access Control) endpoints.\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## User Code\nEvery user has a unique 6-character alphanumeric code (e.g., ABC123) auto-generated at creation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "dev_access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "superadmin_access_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "🚀 Quick Start",
+			"item": [
+				{
+					"name": "Login as Developer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('dev_access_token', jsonData.data.tokens.access_token);",
+									"    console.log('Developer tokens saved!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"dev@credbuzz.com\",\n    \"password\": \"Developer@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						},
+						"description": "Login as Developer (user_code: CGX0R0). Use this for highest privilege operations."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Super Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('superadmin_access_token', jsonData.data.tokens.access_token);",
+									"    console.log('Super Admin tokens saved!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"superadmin@credbuzz.com\",\n    \"password\": \"SuperAdmin@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						},
+						"description": "Login as Super Admin (user_code: VYO541). Use this for admin operations."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Profile (with user_code & user_role)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me", ""]
+						},
+						"description": "Get current user's profile including user_code and user_role fields."
+					},
+					"response": []
+				}
+			],
+			"description": "Quick start endpoints for testing. Use these to quickly login as different role users.\n\n**Test Accounts:**\n- Developer: dev@credbuzz.com / Developer@123 (CGX0R0)\n- Super Admin: superadmin@credbuzz.com / SuperAdmin@123 (VYO541)"
+		},
+		{
+			"name": "🔐 Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"username\": \"johndoe\",\n    \"password\": \"SecurePass123!\",\n    \"confirm_password\": \"SecurePass123!\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"phone_number\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register", ""]
+						},
+						"description": "Register a new user account. The user will be assigned:\n- **user_role**: END_USER (default)\n- **user_code**: Auto-generated 6-character unique code (e.g., ABC123)\n\nTo upgrade role, an Admin+ must assign via RBAC endpoints."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    console.log('Tokens saved successfully!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						},
+						"description": "Authenticate user and get JWT tokens. Tokens are automatically saved to collection variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout", ""]
+						},
+						"description": "Logout and invalidate current session."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.access_token) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.access_token);",
+									"    console.log('Access token refreshed!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh-token/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh-token", ""]
+						},
+						"description": "Get a new access token using the refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/forgot-password/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "forgot-password", ""]
+						},
+						"description": "Request a password reset token."
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"paste-reset-token-here\",\n    \"new_password\": \"NewSecurePass123!\",\n    \"confirm_password\": \"NewSecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/reset-password/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "reset-password", ""]
+						},
+						"description": "Reset password using the reset token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me", ""]
+						},
+						"description": "Get the authenticated user's profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Current User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"John Updated\",\n    \"last_name\": \"Doe Updated\",\n    \"phone_number\": \"+9876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/me/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me", ""]
+						},
+						"description": "Update the authenticated user's profile."
+					},
+					"response": []
+				}
+			],
+			"description": "User authentication endpoints including registration, login, logout, and password management."
+		},
+		{
+			"name": "👥 Users Management",
+			"item": [
+				{
+					"name": "List All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", ""]
+						},
+						"description": "Get list of all users."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/1/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "1", ""]
+						},
+						"description": "Get details of a specific user."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Updated Name\",\n    \"last_name\": \"Updated Last\",\n    \"phone_number\": \"+1111111111\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/users/1/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "1", ""]
+						},
+						"description": "Update a user's information."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Role",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_role\": \"ADMIN\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/users/3/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "3", ""]
+						},
+						"description": "Update a user's role. Valid roles: DEVELOPER, SUPER_ADMIN, ADMIN, CLIENT, END_USER. Requires Admin+ permission."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by User Code",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/?user_code=CGX0R0",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", ""],
+							"query": [
+								{
+									"key": "user_code",
+									"value": "CGX0R0"
+								}
+							]
+						},
+						"description": "Find a user by their unique user code."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/1/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "1", ""]
+						},
+						"description": "Delete a user account."
+					},
+					"response": []
+				}
+			],
+			"description": "User management CRUD operations."
+		},
+		{
+			"name": "🎭 RBAC - Roles",
+			"item": [
+				{
+					"name": "List All Roles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""]
+						},
+						"description": "Get list of all user roles."
+					},
+					"response": []
+				},
+				{
+					"name": "List Roles by Level",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/?level=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""],
+							"query": [
+								{
+									"key": "level",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get roles filtered by hierarchy level."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Custom Manager\",\n    \"code\": \"CUSTOM_MANAGER\",\n    \"level\": 3,\n    \"description\": \"Custom manager role with limited access\",\n    \"is_system_role\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""]
+						},
+						"description": "Create a new user role. Requires Super Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Role Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "1", ""]
+						},
+						"description": "Get details of a specific role including apps and features."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Role Name\",\n    \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/6/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "6", ""]
+						},
+						"description": "Update a role. Cannot update roles with equal or higher privilege."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Role",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/6/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "6", ""]
+						},
+						"description": "Delete a role. System roles cannot be deleted."
+					},
+					"response": []
+				}
+			],
+			"description": "User role management endpoints."
+		},
+		{
+			"name": "📱 RBAC - Apps",
+			"item": [
+				{
+					"name": "List All Apps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""]
+						},
+						"description": "Get list of all applications."
+					},
+					"response": []
+				},
+				{
+					"name": "List Root Apps Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/?root_only=true",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""],
+							"query": [
+								{
+									"key": "root_only",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get only root-level apps (no parent)."
+					},
+					"response": []
+				},
+				{
+					"name": "Create App",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Reports\",\n    \"code\": \"REPORTS\",\n    \"description\": \"Reporting and analytics module\",\n    \"icon\": \"fa-chart-bar\",\n    \"display_order\": 5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""]
+						},
+						"description": "Create a new application. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get App Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", "1", ""]
+						},
+						"description": "Get details of a specific app including features and roles with access."
+					},
+					"response": []
+				},
+				{
+					"name": "Update App",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated App Name\",\n    \"description\": \"Updated description\",\n    \"icon\": \"fa-cog\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", "1", ""]
+						},
+						"description": "Update an app. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete App",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", "1", ""]
+						},
+						"description": "Delete (deactivate) an app. Requires Developer role."
+					},
+					"response": []
+				}
+			],
+			"description": "Application/module management endpoints."
+		},
+		{
+			"name": "⚡ RBAC - Features",
+			"item": [
+				{
+					"name": "List All Features",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""]
+						},
+						"description": "Get list of all features."
+					},
+					"response": []
+				},
+				{
+					"name": "List Features by App ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/?app_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""],
+							"query": [
+								{
+									"key": "app_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get features filtered by app ID."
+					},
+					"response": []
+				},
+				{
+					"name": "List Features by App Code",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/?app_code=USER_MGMT",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								}
+							]
+						},
+						"description": "Get features filtered by app code."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Feature",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app\": 1,\n    \"name\": \"Delete User\",\n    \"code\": \"DELETE_USER\",\n    \"description\": \"Delete users from the system\",\n    \"feature_type\": \"ACTION\",\n    \"display_order\": 4\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/features/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""]
+						},
+						"description": "Create a new feature. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Feature Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", "1", ""]
+						},
+						"description": "Get details of a specific feature."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Feature",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Feature Name\",\n    \"description\": \"Updated description\",\n    \"feature_type\": \"VIEW\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/features/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", "1", ""]
+						},
+						"description": "Update a feature. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Feature",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", "1", ""]
+						},
+						"description": "Delete (deactivate) a feature. Requires Developer role."
+					},
+					"response": []
+				}
+			],
+			"description": "Feature management endpoints."
+		},
+		{
+			"name": "🔗 RBAC - Role-App Mappings",
+			"item": [
+				{
+					"name": "List Role-App Mappings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", ""]
+						},
+						"description": "Get list of all role-app mappings."
+					},
+					"response": []
+				},
+				{
+					"name": "List Mappings by Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/?role_id=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", ""],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get mappings filtered by role ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign App to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role\": 3,\n    \"app\": 1,\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": true,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", ""]
+						},
+						"description": "Assign an app to a role with CRUD permissions. Requires Super Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Assign Apps to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_id\": 3,\n    \"app_ids\": [1, 2, 3],\n    \"can_view\": true,\n    \"can_create\": false,\n    \"can_update\": false,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/bulk/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", "bulk", ""]
+						},
+						"description": "Bulk assign multiple apps to a role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role-App Mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": true,\n    \"can_delete\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", "1", ""]
+						},
+						"description": "Update CRUD permissions for a role-app mapping."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke App from Role",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", "1", ""]
+						},
+						"description": "Revoke app access from a role."
+					},
+					"response": []
+				}
+			],
+			"description": "Role to App mapping endpoints."
+		},
+		{
+			"name": "🔗 RBAC - Role-Feature Mappings",
+			"item": [
+				{
+					"name": "List Role-Feature Mappings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", ""]
+						},
+						"description": "Get list of all role-feature mappings."
+					},
+					"response": []
+				},
+				{
+					"name": "List Mappings by Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/?role_id=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", ""],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get mappings filtered by role ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Feature to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role\": 3,\n    \"feature\": 1,\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": false,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", ""]
+						},
+						"description": "Assign a feature to a role with CRUD permissions."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Assign Features to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_id\": 3,\n    \"feature_ids\": [1, 2, 3],\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": false,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/bulk/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", "bulk", ""]
+						},
+						"description": "Bulk assign multiple features to a role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role-Feature Mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": true,\n    \"can_delete\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", "1", ""]
+						},
+						"description": "Update CRUD permissions for a role-feature mapping."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Feature from Role",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", "1", ""]
+						},
+						"description": "Revoke feature access from a role."
+					},
+					"response": []
+				}
+			],
+			"description": "Role to Feature mapping endpoints."
+		},
+		{
+			"name": "👤 RBAC - User Role Assignments",
+			"item": [
+				{
+					"name": "List User Role Assignments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""]
+						},
+						"description": "Get list of all user role assignments."
+					},
+					"response": []
+				},
+				{
+					"name": "List Assignments by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/?user_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get assignments filtered by user ID."
+					},
+					"response": []
+				},
+				{
+					"name": "List Assignments by Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/?role_id=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get assignments filtered by role ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Role to User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user\": 5,\n    \"role\": 4,\n    \"is_primary\": true,\n    \"valid_from\": \"2025-11-28T00:00:00Z\",\n    \"valid_until\": \"2026-11-28T00:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""]
+						},
+						"description": "Assign a role to a user. Requires Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Assign Role to Users",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_ids\": [5, 6, 7],\n    \"role_id\": 4,\n    \"is_primary\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/bulk/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", "bulk", ""]
+						},
+						"description": "Bulk assign a role to multiple users."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Role Assignment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_primary\": true,\n    \"valid_until\": \"2027-11-28T00:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", "1", ""]
+						},
+						"description": "Update a user role assignment."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Role from User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", "1", ""]
+						},
+						"description": "Revoke a role from a user."
+					},
+					"response": []
+				}
+			],
+			"description": "User to Role assignment endpoints."
+		},
+		{
+			"name": "🔑 RBAC - Permissions",
+			"item": [
+				{
+					"name": "Get My Permissions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/my-permissions/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "my-permissions", ""]
+						},
+						"description": "Get all permissions of the authenticated user."
+					},
+					"response": []
+				},
+				{
+					"name": "Check App Permission",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/check-permission/?app_code=USER_MGMT&permission=view",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "check-permission", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								},
+								{
+									"key": "permission",
+									"value": "view"
+								}
+							]
+						},
+						"description": "Check if user has specific permission on an app."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Feature Permission",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/check-permission/?app_code=USER_MGMT&feature_code=CREATE_USER&permission=create",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "check-permission", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								},
+								{
+									"key": "feature_code",
+									"value": "CREATE_USER"
+								},
+								{
+									"key": "permission",
+									"value": "create"
+								}
+							]
+						},
+						"description": "Check if user has specific permission on a feature."
+					},
+					"response": []
+				}
+			],
+			"description": "Permission checking endpoints."
+		},
+		{
+			"name": "📋 RBAC - Audit Logs",
+			"item": [
+				{
+					"name": "List Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""]
+						},
+						"description": "Get list of all audit logs. Requires Super Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Logs by Action",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/?action=CREATE",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""],
+							"query": [
+								{
+									"key": "action",
+									"value": "CREATE"
+								}
+							]
+						},
+						"description": "Get logs filtered by action type."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Logs by Entity Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/?entity_type=USER_ROLE",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""],
+							"query": [
+								{
+									"key": "entity_type",
+									"value": "USER_ROLE"
+								}
+							]
+						},
+						"description": "Get logs filtered by entity type."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Logs by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/?user_id=1&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get logs filtered by performer and limit results."
+					},
+					"response": []
+				}
+			],
+			"description": "Audit log endpoints for tracking changes."
+		}
+	]
+}
