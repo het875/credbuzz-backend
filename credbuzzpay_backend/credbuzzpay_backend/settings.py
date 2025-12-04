@@ -147,6 +147,21 @@ JWT_SECRET_KEY = SECRET_KEY  # In production, use a separate secret key
 JWT_ALGORITHM = 'HS256'
 JWT_ACCESS_TOKEN_EXPIRY_MINUTES = 60  # 1 hour
 JWT_REFRESH_TOKEN_EXPIRY_DAYS = 7  # 7 days
+JWT_INACTIVITY_TIMEOUT_MINUTES = 30  # Auto-logout after 30 minutes of inactivity (like bank apps)
+
+
+# Security Settings - Login Attempt Tracking
+LOGIN_MAX_ATTEMPTS_PER_STAGE = 5  # Max failed attempts before lockout
+LOGIN_LOCKOUT_STAGES = [
+    # (stage, lockout_minutes) - -1 means permanent block
+    (0, 0),      # Initial: 5 attempts allowed
+    (1, 2),      # Stage 1: 2 minutes lockout
+    (2, 5),      # Stage 2: 5 minutes lockout
+    (3, 10),     # Stage 3: 10 minutes lockout
+    (4, 30),     # Stage 4: 30 minutes lockout
+    (5, 60),     # Stage 5: 60 minutes lockout
+    (6, -1),     # Stage 6: Blocked (requires manual unblock)
+]
 
 
 # CORS Settings

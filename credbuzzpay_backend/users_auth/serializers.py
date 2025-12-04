@@ -73,48 +73,132 @@ class UserRegistrationSerializer(serializers.Serializer):
 
 class UserLoginSerializer(serializers.Serializer):
     """
-    Serializer for user login
+    Serializer for user login.
+    Supports dynamic login via a single 'identifier' field.
+    The identifier can be: email, username, user_code, or phone_number.
+    System auto-detects the type.
     """
-    email = serializers.EmailField(required=False)
-    username = serializers.CharField(required=False)
+    identifier = serializers.CharField(
+        help_text="Login identifier: email, username, user_code, or phone_number"
+    )
     password = serializers.CharField(write_only=True)
     
+    def _detect_identifier_type(self, identifier):
+        """
+        Auto-detect the type of identifier provided.
+        Returns: (identifier_type, normalized_identifier)
+        """
+        identifier = identifier.strip()
+        
+        # Check if it's an email (contains @)
+        if '@' in identifier:
+            return 'EMAIL', identifier.lower()
+        
+        # Check if it's a phone number (starts with + or contains only digits and common phone chars)
+        if identifier.startswith('+') or re.match(r'^[\d\s\-\(\)]+$', identifier):
+            # Normalize phone number - remove spaces, dashes, parentheses
+            normalized = re.sub(r'[\s\-\(\)]', '', identifier)
+            if len(normalized) >= 10:  # Valid phone number length
+                return 'PHONE', identifier
+        
+        # Check if it's a user_code (exactly 6 alphanumeric characters, uppercase)
+        if re.match(r'^[A-Za-z0-9]{6}$', identifier):
+            return 'USER_CODE', identifier.upper()
+        
+        # Default to username
+        return 'USERNAME', identifier
+    
     def validate(self, data):
-        """Validate login credentials"""
-        email = data.get('email')
-        username = data.get('username')
+        """Validate login credentials with auto-detection"""
+        identifier_input = data.get('identifier')
         password = data.get('password')
         
-        if not email and not username:
-            raise serializers.ValidationError(
-                "Either email or username is required."
-            )
+        if not identifier_input:
+            raise serializers.ValidationError({
+                'identifier': "Please provide your email, username, user_code, or phone_number."
+            })
         
-        # Try to find user by email or username
+        # Auto-detect identifier type
+        identifier_type, identifier = self._detect_identifier_type(identifier_input)
+        
+        # Store identifier info for lockout tracking in view
+        data['identifier'] = identifier
+        data['identifier_type'] = identifier_type
+        
+        # Try to find user by the detected identifier type
         user = None
-        if email:
-            try:
-                user = User.objects.get(email=email.lower())
-            except User.DoesNotExist:
-                pass
-        
-        if not user and username:
-            try:
-                user = User.objects.get(username=username)
-            except User.DoesNotExist:
-                pass
+        try:
+            if identifier_type == 'EMAIL':
+                user = User.objects.get(email=identifier)
+            elif identifier_type == 'USERNAME':
+                user = User.objects.get(username=identifier)
+            elif identifier_type == 'USER_CODE':
+                user = User.objects.get(user_code=identifier)
+            elif identifier_type == 'PHONE':
+                # Try exact match first, then try normalized
+                try:
+                    user = User.objects.get(phone_number=identifier)
+                except User.DoesNotExist:
+                    # Try with just the digits
+                    normalized = re.sub(r'[\s\-\(\)]', '', identifier)
+                    user = User.objects.get(phone_number__endswith=normalized[-10:])
+        except User.DoesNotExist:
+            # If not found with detected type, try all types as fallback
+            user = self._find_user_fallback(identifier_input)
         
         if not user:
-            raise serializers.ValidationError("Invalid credentials.")
+            raise serializers.ValidationError({
+                'non_field_errors': ["Invalid credentials."]
+            })
+        
+        if user.is_deleted:
+            raise serializers.ValidationError({
+                'non_field_errors': ["User account has been deleted."]
+            })
         
         if not user.is_active:
-            raise serializers.ValidationError("User account is deactivated.")
+            raise serializers.ValidationError({
+                'non_field_errors': ["User account is deactivated."]
+            })
         
         if not user.check_password(password):
-            raise serializers.ValidationError("Invalid credentials.")
+            raise serializers.ValidationError({
+                'non_field_errors': ["Invalid credentials."],
+                '_auth_failed': True  # Flag for lockout tracking
+            })
         
         data['user'] = user
         return data
+    
+    def _find_user_fallback(self, identifier):
+        """
+        Fallback: Try to find user by checking all identifier types.
+        This handles edge cases where detection might be wrong.
+        """
+        identifier_lower = identifier.lower().strip()
+        identifier_upper = identifier.upper().strip()
+        
+        # Try email
+        user = User.objects.filter(email=identifier_lower).first()
+        if user:
+            return user
+        
+        # Try username
+        user = User.objects.filter(username=identifier.strip()).first()
+        if user:
+            return user
+        
+        # Try user_code
+        user = User.objects.filter(user_code=identifier_upper).first()
+        if user:
+            return user
+        
+        # Try phone_number
+        user = User.objects.filter(phone_number=identifier.strip()).first()
+        if user:
+            return user
+        
+        return None
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
@@ -225,6 +309,8 @@ class UserSerializer(serializers.Serializer):
     user_role = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_verified = serializers.BooleanField(read_only=True)
+    is_deleted = serializers.BooleanField(read_only=True)
+    deleted_at = serializers.DateTimeField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     last_login = serializers.DateTimeField(read_only=True)
@@ -271,6 +357,8 @@ class UserListSerializer(serializers.Serializer):
     full_name = serializers.CharField(read_only=True)
     user_role = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
+    is_deleted = serializers.BooleanField(read_only=True)
+    deleted_at = serializers.DateTimeField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
 
 

@@ -34,13 +34,67 @@ class JWTManager:
         """Get refresh token expiry in days"""
         return getattr(settings, 'JWT_REFRESH_TOKEN_EXPIRY_DAYS', 7)
     
+    @staticmethod
+    def get_inactivity_timeout():
+        """Get session inactivity timeout in minutes (like bank apps)"""
+        return getattr(settings, 'JWT_INACTIVITY_TIMEOUT_MINUTES', 30)
+    
     @classmethod
-    def generate_access_token(cls, user):
+    def get_user_permissions(cls, user):
         """
-        Generate JWT access token for user
+        Get user's app and feature permissions from RBAC.
+        Returns list of app IDs and feature IDs the user has access to.
+        """
+        app_access = []
+        feature_access = []
+        
+        try:
+            from rbac.models import UserRoleAssignment, RoleAppMapping, RoleFeatureMapping
+            
+            # Get all active role assignments for user
+            role_assignments = UserRoleAssignment.objects.filter(
+                user=user,
+                is_active=True
+            ).select_related('role')
+            
+            role_ids = [ra.role_id for ra in role_assignments if ra.is_valid()]
+            
+            # Get app access for all user's roles
+            app_mappings = RoleAppMapping.objects.filter(
+                role_id__in=role_ids,
+                is_active=True,
+                can_view=True
+            ).values_list('app_id', flat=True).distinct()
+            app_access = list(app_mappings)
+            
+            # Get feature access for all user's roles
+            feature_mappings = RoleFeatureMapping.objects.filter(
+                role_id__in=role_ids,
+                is_active=True,
+                can_view=True
+            ).values_list('feature_id', flat=True).distinct()
+            feature_access = list(feature_mappings)
+            
+        except Exception:
+            # If RBAC is not set up, return empty lists
+            pass
+        
+        return app_access, feature_access
+    
+    @classmethod
+    def generate_access_token(cls, user, include_permissions=True):
+        """
+        Generate JWT access token for user with complete user info.
+        
+        The token includes:
+        - user_id, email, username, user_code, user_role
+        - app_access: list of app IDs user can access
+        - feature_access: list of feature IDs user can access
+        - Session tracking for inactivity timeout
         
         Args:
             user: User model instance
+            include_permissions: Whether to include RBAC permissions
             
         Returns:
             tuple: (token_string, token_id, expiry_datetime)
@@ -49,14 +103,32 @@ class JWTManager:
         expiry_minutes = cls.get_access_token_expiry()
         expiry_datetime = timezone.now() + timedelta(minutes=expiry_minutes)
         
+        # Get permissions if requested
+        app_access, feature_access = [], []
+        if include_permissions:
+            app_access, feature_access = cls.get_user_permissions(user)
+        
         payload = {
+            # User identification
             'user_id': user.id,
             'email': user.email,
             'username': user.username,
+            'user_code': user.user_code,
+            'user_role': user.user_role,
+            'full_name': user.full_name,
+            
+            # RBAC permissions (for middleware/frontend use)
+            'app_access': app_access,
+            'feature_access': feature_access,
+            
+            # Token metadata
             'jti': token_id,  # JWT ID
             'token_type': 'access',
             'iat': timezone.now().timestamp(),  # Issued at
             'exp': expiry_datetime.timestamp(),  # Expiry
+            
+            # For inactivity tracking (frontend should refresh based on this)
+            'inactivity_timeout_minutes': cls.get_inactivity_timeout(),
         }
         
         token = jwt.encode(
@@ -211,6 +283,13 @@ class JWTManager:
             session = UserSession.objects.get(token_id=token_id, is_active=True)
             if not session.is_valid():
                 return None
+            
+            # Check for inactivity timeout (like bank apps)
+            inactivity_timeout = cls.get_inactivity_timeout()
+            if session.is_inactive_expired(inactivity_timeout):
+                session.invalidate()
+                return None
+                
         except UserSession.DoesNotExist:
             return None
         
@@ -220,8 +299,11 @@ class JWTManager:
         except User.DoesNotExist:
             return None
         
-        # Generate new access token
-        access_token, access_token_id, access_expiry = cls.generate_access_token(user)
+        # Update session activity
+        session.update_activity()
+        
+        # Generate new access token with full permissions
+        access_token, access_token_id, access_expiry = cls.generate_access_token(user, include_permissions=True)
         
         return {
             'access_token': access_token,

@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "credbuzz-rbac-collection",
 		"name": "CredBuzz Backend API",
-		"description": "Complete API collection for CredBuzz Backend including User Authentication and RBAC (Role-Based Access Control) endpoints.\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## User Code\nEvery user has a unique 6-character alphanumeric code (e.g., ABC123) auto-generated at creation.",
+		"description": "Complete API collection for CredBuzz Backend including User Authentication and RBAC (Role-Based Access Control) endpoints.\n\n## Dynamic Login\nLogin uses a single `identifier` field that auto-detects:\n- **Email**: Contains @ (e.g., user@example.com)\n- **Phone**: Starts with + (e.g., +1234567890)\n- **User Code**: 6 alphanumeric chars (e.g., CGX0R0)\n- **Username**: Default fallback\n\n## Login Security\n- Progressive lockout: 5 attempts → 2min → 5min → 10min → 30min → 60min → blocked\n- Session inactivity timeout: 30 minutes (like bank apps)\n- JWT includes: user_code, user_role, app_access, feature_access\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## User Code\nEvery user has a unique 6-character alphanumeric code (e.g., ABC123) auto-generated at creation.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -18,6 +18,11 @@
 		},
 		{
 			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_code",
 			"value": "",
 			"type": "string"
 		},
@@ -58,7 +63,10 @@
 									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
 									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
 									"    pm.collectionVariables.set('dev_access_token', jsonData.data.tokens.access_token);",
-									"    console.log('Developer tokens saved!');",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    console.log('Developer tokens saved! User code:', jsonData.data.user.user_code);",
+									"    console.log('App access:', jsonData.data.app_access);",
+									"    console.log('Feature access:', jsonData.data.feature_access);",
 									"}"
 								],
 								"type": "text/javascript"
@@ -75,14 +83,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"dev@credbuzz.com\",\n    \"password\": \"Developer@123\"\n}"
+							"raw": "{\n    \"identifier\": \"dev@credbuzz.com\",\n    \"password\": \"Developer@123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login/",
 							"host": ["{{base_url}}"],
 							"path": ["auth", "login", ""]
 						},
-						"description": "Login as Developer (user_code: CGX0R0). Use this for highest privilege operations."
+						"description": "Login as Developer using dynamic identifier. Response includes app_access and feature_access arrays.\n\n**Identifier Options:**\n- Email: dev@credbuzz.com\n- Username: developer\n- User Code: CGX0R0"
 					},
 					"response": []
 				},
@@ -98,7 +106,8 @@
 									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
 									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
 									"    pm.collectionVariables.set('superadmin_access_token', jsonData.data.tokens.access_token);",
-									"    console.log('Super Admin tokens saved!');",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    console.log('Super Admin tokens saved! User code:', jsonData.data.user.user_code);",
 									"}"
 								],
 								"type": "text/javascript"
@@ -115,14 +124,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"superadmin@credbuzz.com\",\n    \"password\": \"SuperAdmin@123\"\n}"
+							"raw": "{\n    \"identifier\": \"superadmin@credbuzz.com\",\n    \"password\": \"SuperAdmin@123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login/",
 							"host": ["{{base_url}}"],
 							"path": ["auth", "login", ""]
 						},
-						"description": "Login as Super Admin (user_code: VYO541). Use this for admin operations."
+						"description": "Login as Super Admin using dynamic identifier.\n\n**Identifier Options:**\n- Email: superadmin@credbuzz.com\n- Username: superadmin\n- User Code: VYO541"
 					},
 					"response": []
 				},
@@ -180,7 +189,11 @@
 									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
 									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
 									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
-									"    console.log('Tokens saved successfully!');",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    console.log('Tokens saved! User code:', jsonData.data.user.user_code);",
+									"    console.log('App access:', jsonData.data.app_access);",
+									"    console.log('Feature access:', jsonData.data.feature_access);",
+									"    console.log('Session timeout:', jsonData.data.session.inactivity_timeout_minutes, 'minutes');",
 									"}"
 								],
 								"type": "text/javascript"
@@ -197,14 +210,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"SecurePass123!\"\n}"
+							"raw": "{\n    \"identifier\": \"user@example.com\",\n    \"password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login/",
 							"host": ["{{base_url}}"],
 							"path": ["auth", "login", ""]
 						},
-						"description": "Authenticate user and get JWT tokens. Tokens are automatically saved to collection variables."
+						"description": "**Dynamic Login** - Single identifier field auto-detects login type.\n\n**identifier field accepts:**\n- Email: user@example.com (contains @)\n- Phone: +1234567890 (starts with +)\n- User Code: ABC123 (6 alphanumeric chars)\n- Username: johndoe (default)\n\n**Response includes:**\n- app_access: Array of app IDs user can access\n- feature_access: Array of feature IDs user can access\n- session.inactivity_timeout_minutes: 30 min timeout\n\n**Security:**\n- 5 failed attempts → progressive lockout\n- 30 min inactivity → auto logout"
 					},
 					"response": []
 				},
@@ -368,7 +381,47 @@
 							"host": ["{{base_url}}"],
 							"path": ["auth", "users", ""]
 						},
-						"description": "Get list of all users."
+						"description": "Get list of all active users (excludes soft-deleted users by default)."
+					},
+					"response": []
+				},
+				{
+					"name": "List All Users (Include Deleted)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/?include_deleted=true",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", ""],
+							"query": [
+								{
+									"key": "include_deleted",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get list of all users including soft-deleted ones."
+					},
+					"response": []
+				},
+				{
+					"name": "List Only Deleted Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/?is_deleted=true",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", ""],
+							"query": [
+								{
+									"key": "is_deleted",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get list of only soft-deleted users."
 					},
 					"response": []
 				},
@@ -382,7 +435,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["auth", "users", "1", ""]
 						},
-						"description": "Get details of a specific user."
+						"description": "Get details of a specific user (only active users, not soft-deleted)."
 					},
 					"response": []
 				},
@@ -433,41 +486,97 @@
 					"response": []
 				},
 				{
-					"name": "Get User by User Code",
+					"name": "Search Users",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/?user_code=CGX0R0",
+							"raw": "{{base_url}}/auth/users/?search=john",
 							"host": ["{{base_url}}"],
 							"path": ["auth", "users", ""],
 							"query": [
 								{
-									"key": "user_code",
-									"value": "CGX0R0"
+									"key": "search",
+									"value": "john"
 								}
 							]
 						},
-						"description": "Find a user by their unique user code."
+						"description": "Search users by email, username, first_name, last_name, or user_code."
 					},
 					"response": []
 				},
 				{
-					"name": "Delete User",
+					"name": "Soft Delete User (DELETE)",
 					"request": {
 						"method": "DELETE",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/1/",
+							"raw": "{{base_url}}/auth/users/3/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "1", ""]
+							"path": ["auth", "users", "3", ""]
 						},
-						"description": "Delete a user account."
+						"description": "**SOFT DELETE** - Marks user as deleted (is_deleted=True) without removing from database.\n\n- Sets is_deleted=True\n- Sets is_active=False\n- Records deleted_at timestamp\n- Invalidates all sessions\n- User can be restored later\n\n**Note:** Cannot delete your own account."
+					},
+					"response": []
+				},
+				{
+					"name": "Hard Delete User (Permanent)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/3/hard-delete/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "3", "hard-delete", ""]
+						},
+						"description": "**HARD DELETE** - Permanently removes user from database.\n\n⚠️ **WARNING:** This action CANNOT be undone!\n\n- Completely removes user record\n- Removes all related data (sessions, login attempts, etc.)\n- User cannot be recovered\n\n**Note:** Cannot delete your own account."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Deleted User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/3/restore/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "3", "restore", ""]
+						},
+						"description": "**RESTORE** - Restores a soft-deleted user.\n\n- Sets is_deleted=False\n- Sets is_active=True\n- Clears deleted_at timestamp\n- User can login again"
+					},
+					"response": []
+				},
+				{
+					"name": "Activate User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/3/activate/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "3", "activate", ""]
+						},
+						"description": "Activate a deactivated user account."
+					},
+					"response": []
+				},
+				{
+					"name": "Deactivate User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/users/3/deactivate/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "users", "3", "deactivate", ""]
+						},
+						"description": "Deactivate a user account (different from delete - just sets is_active=False)."
 					},
 					"response": []
 				}
 			],
-			"description": "User management CRUD operations."
+			"description": "User management CRUD operations including soft delete, hard delete, and restore."
 		},
 		{
 			"name": "🎭 RBAC - Roles",
@@ -577,6 +686,20 @@
 							"path": ["rbac", "roles", "6", ""]
 						},
 						"description": "Delete a role. System roles cannot be deleted."
+					},
+					"response": []
+				},
+				{
+					"name": "Initialize Default Roles",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/initialize/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "initialize", ""]
+						},
+						"description": "Initialize default system roles (Developer, Super Admin, Admin, Client, End User). Requires Developer role. Safe to call multiple times - only creates roles that don't exist."
 					},
 					"response": []
 				}

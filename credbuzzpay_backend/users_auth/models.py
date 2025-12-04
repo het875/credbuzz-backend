@@ -102,9 +102,11 @@ class User(models.Model):
     # Status fields
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False, help_text="Soft delete flag - True means user is deleted")
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when user was soft deleted")
     updated_at = models.DateTimeField(auto_now=True)
     last_login = models.DateTimeField(blank=True, null=True)
     
@@ -262,6 +264,7 @@ class UserSession(models.Model):
     is_active = models.BooleanField(default=True)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     user_agent = models.TextField(blank=True, null=True)
+    last_activity = models.DateTimeField(auto_now_add=True)  # Track last activity for inactivity timeout
     
     class Meta:
         db_table = 'users_auth_user_session'
@@ -278,3 +281,192 @@ class UserSession(models.Model):
     def is_valid(self):
         """Check if session is still valid"""
         return self.is_active and self.expires_at > timezone.now()
+    
+    def update_activity(self):
+        """Update last activity timestamp"""
+        self.last_activity = timezone.now()
+        self.save(update_fields=['last_activity'])
+    
+    def is_inactive_expired(self, inactivity_minutes=30):
+        """Check if session has expired due to inactivity"""
+        if not self.is_active:
+            return True
+        inactivity_threshold = self.last_activity + timedelta(minutes=inactivity_minutes)
+        return timezone.now() > inactivity_threshold
+
+
+class LoginAttempt(models.Model):
+    """
+    Model to track login attempts for security and rate limiting.
+    
+    Implements progressive lockout:
+    - 5 failed attempts in first try
+    - Then wait 2 minutes
+    - Then wait 5 minutes
+    - Then wait 10 minutes
+    - Then wait 30 minutes
+    - Then wait 60 minutes
+    - Then account is blocked (needs admin intervention)
+    """
+    
+    LOCKOUT_STAGES = [
+        (0, 0),      # Initial: 5 attempts allowed
+        (1, 2),      # Stage 1: 2 minutes lockout
+        (2, 5),      # Stage 2: 5 minutes lockout
+        (3, 10),     # Stage 3: 10 minutes lockout
+        (4, 30),     # Stage 4: 30 minutes lockout
+        (5, 60),     # Stage 5: 60 minutes lockout
+        (6, -1),     # Stage 6: Blocked (requires manual unblock)
+    ]
+    
+    MAX_ATTEMPTS_PER_STAGE = 5
+    
+    id = models.AutoField(primary_key=True)
+    
+    # Identifier for the login attempt (can be email, username, user_code, phone)
+    identifier = models.CharField(max_length=255, db_index=True)
+    identifier_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('EMAIL', 'Email'),
+            ('USERNAME', 'Username'),
+            ('USER_CODE', 'User Code'),
+            ('PHONE', 'Phone Number'),
+        ]
+    )
+    
+    # User reference (null if user doesn't exist)
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='login_attempts'
+    )
+    
+    # Attempt tracking
+    attempt_count = models.IntegerField(default=0)
+    lockout_stage = models.IntegerField(default=0)
+    
+    # Status
+    is_successful = models.BooleanField(default=False)
+    is_blocked = models.BooleanField(default=False)  # Permanently blocked
+    
+    # Lockout timing
+    lockout_until = models.DateTimeField(null=True, blank=True)
+    last_attempt_at = models.DateTimeField(auto_now=True)
+    
+    # Request metadata
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    user_agent = models.TextField(blank=True, null=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'users_auth_login_attempt'
+        ordering = ['-last_attempt_at']
+        indexes = [
+            models.Index(fields=['identifier', 'identifier_type']),
+            models.Index(fields=['ip_address']),
+        ]
+    
+    def __str__(self):
+        return f"Login attempt for {self.identifier} ({self.attempt_count} attempts)"
+    
+    @classmethod
+    def get_or_create_for_identifier(cls, identifier, identifier_type, ip_address=None, user_agent=None):
+        """Get or create login attempt record for an identifier"""
+        attempt, created = cls.objects.get_or_create(
+            identifier=identifier.lower(),
+            identifier_type=identifier_type,
+            defaults={
+                'ip_address': ip_address,
+                'user_agent': user_agent,
+            }
+        )
+        if not created:
+            attempt.ip_address = ip_address
+            attempt.user_agent = user_agent
+        return attempt
+    
+    def is_locked_out(self):
+        """Check if the identifier is currently locked out"""
+        if self.is_blocked:
+            return True, "Account is blocked. Please contact support."
+        
+        if self.lockout_until and timezone.now() < self.lockout_until:
+            remaining = self.lockout_until - timezone.now()
+            minutes = int(remaining.total_seconds() / 60)
+            seconds = int(remaining.total_seconds() % 60)
+            if minutes > 0:
+                return True, f"Too many failed attempts. Please try again in {minutes} minute(s)."
+            else:
+                return True, f"Too many failed attempts. Please try again in {seconds} second(s)."
+        
+        return False, None
+    
+    def get_remaining_attempts(self):
+        """Get remaining attempts before next lockout"""
+        return max(0, self.MAX_ATTEMPTS_PER_STAGE - self.attempt_count)
+    
+    def record_failed_attempt(self):
+        """Record a failed login attempt and apply lockout if needed"""
+        self.attempt_count += 1
+        self.is_successful = False
+        
+        # Check if we've exceeded max attempts for current stage
+        if self.attempt_count >= self.MAX_ATTEMPTS_PER_STAGE:
+            self.lockout_stage += 1
+            self.attempt_count = 0  # Reset attempt count for next stage
+            
+            # Get lockout duration for this stage
+            lockout_minutes = None
+            for stage, minutes in self.LOCKOUT_STAGES:
+                if stage == self.lockout_stage:
+                    lockout_minutes = minutes
+                    break
+            
+            if lockout_minutes == -1:
+                # Permanent block
+                self.is_blocked = True
+                self.lockout_until = None
+            elif lockout_minutes is not None:
+                self.lockout_until = timezone.now() + timedelta(minutes=lockout_minutes)
+        
+        self.save()
+        
+        return {
+            'remaining_attempts': self.get_remaining_attempts(),
+            'lockout_stage': self.lockout_stage,
+            'is_blocked': self.is_blocked,
+            'lockout_until': self.lockout_until,
+        }
+    
+    def record_successful_login(self, user=None):
+        """Record a successful login and reset attempt tracking"""
+        self.attempt_count = 0
+        self.lockout_stage = 0
+        self.is_successful = True
+        self.is_blocked = False
+        self.lockout_until = None
+        if user:
+            self.user = user
+        self.save()
+    
+    def reset_lockout(self):
+        """Reset lockout (for admin intervention)"""
+        self.attempt_count = 0
+        self.lockout_stage = 0
+        self.is_blocked = False
+        self.lockout_until = None
+        self.save()
+    
+    @classmethod
+    def cleanup_old_records(cls, days=30):
+        """Clean up old login attempt records"""
+        threshold = timezone.now() - timedelta(days=days)
+        return cls.objects.filter(
+            last_attempt_at__lt=threshold,
+            is_blocked=False
+        ).delete()

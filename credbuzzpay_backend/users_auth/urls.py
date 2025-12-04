@@ -13,6 +13,8 @@ from .views import (
     UserProfileView,
     UserListView,
     UserDetailView,
+    UserHardDeleteView,
+    UserRestoreView,
     UserActivateView,
 )
 
@@ -38,5 +40,7 @@ urlpatterns = [
     # User management (CRUD)
     path('users/', UserListView.as_view(), name='user-list'),
     path('users/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
+    path('users/<int:user_id>/hard-delete/', UserHardDeleteView.as_view(), name='user-hard-delete'),
+    path('users/<int:user_id>/restore/', UserRestoreView.as_view(), name='user-restore'),
     path('users/<int:user_id>/<str:action>/', UserActivateView.as_view(), name='user-action'),
 ]

@@ -93,12 +93,54 @@ Creates a new user account.
 
 **POST** `/api/auth/login/`
 
-Authenticates user and returns JWT tokens.
+Authenticates user and returns JWT tokens with permissions.
+
+### Dynamic Identifier Login
+
+The login uses a **single `identifier` field** that auto-detects the type:
+- **Email** - Contains `@` (e.g., `user@example.com`)
+- **Phone** - Starts with `+` or is numeric (e.g., `+1234567890`)
+- **User Code** - Exactly 6 alphanumeric characters (e.g., `ABC123`)
+- **Username** - Default fallback for other formats
 
 ### Request Body
 ```json
 {
-    "email": "user@example.com",
+    "identifier": "user@example.com",
+    "password": "SecurePass123!"
+}
+```
+
+### Login Examples
+
+**Login with Email:**
+```json
+{
+    "identifier": "user@example.com",
+    "password": "SecurePass123!"
+}
+```
+
+**Login with Username:**
+```json
+{
+    "identifier": "johndoe",
+    "password": "SecurePass123!"
+}
+```
+
+**Login with User Code:**
+```json
+{
+    "identifier": "ABC123",
+    "password": "SecurePass123!"
+}
+```
+
+**Login with Phone Number:**
+```json
+{
+    "identifier": "+1234567890",
     "password": "SecurePass123!"
 }
 ```
@@ -114,15 +156,102 @@ Authenticates user and returns JWT tokens.
             "email": "user@example.com",
             "username": "johndoe",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
+            "user_code": "ABC123",
+            "user_role": "ADMIN"
         },
         "tokens": {
             "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
             "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
             "access_token_expiry": "2025-11-28T11:00:00Z",
             "refresh_token_expiry": "2025-12-05T10:00:00Z"
+        },
+        "app_access": [1, 2, 5, 6],
+        "feature_access": [1, 2, 3, 4, 5],
+        "session": {
+            "session_id": "abc123...",
+            "expires_at": "2025-12-05T10:00:00Z",
+            "inactivity_timeout_minutes": 30
         }
     }
+}
+```
+
+### Security Features
+
+#### Progressive Lockout
+
+Failed login attempts trigger a progressive lockout system:
+
+| Stage | Failed Attempts | Lockout Duration |
+|-------|-----------------|------------------|
+| 0 | 1-5 | No lockout |
+| 1 | 6 | 2 minutes |
+| 2 | 11 | 5 minutes |
+| 3 | 16 | 10 minutes |
+| 4 | 21 | 30 minutes |
+| 5 | 26 | 60 minutes |
+| 6 | 31+ | Permanently blocked |
+
+#### Failed Login Response (401 Unauthorized)
+```json
+{
+    "success": false,
+    "message": "Invalid credentials",
+    "data": {
+        "remaining_attempts": 4,
+        "lockout_stage": 0,
+        "is_locked": false
+    }
+}
+```
+
+#### Locked Out Response (429 Too Many Requests)
+```json
+{
+    "success": false,
+    "message": "Account locked. Try again in 2 minutes",
+    "data": {
+        "is_locked": true,
+        "lockout_remaining_seconds": 120,
+        "lockout_stage": 1
+    }
+}
+```
+
+#### Blocked Account Response (403 Forbidden)
+```json
+{
+    "success": false,
+    "message": "Account is blocked due to too many failed attempts. Contact support.",
+    "data": {
+        "is_blocked": true
+    }
+}
+```
+
+### Session Inactivity Timeout
+
+Sessions automatically expire after 30 minutes of inactivity (configurable via `JWT_INACTIVITY_TIMEOUT_MINUTES` setting). This works like bank app security - if you don't make any API requests for 30 minutes, your session expires.
+
+### JWT Token Payload
+
+The access token includes these claims for use in middleware:
+```json
+{
+    "user_id": 1,
+    "email": "user@example.com",
+    "username": "johndoe",
+    "user_code": "ABC123",
+    "user_role": "ADMIN",
+    "full_name": "John Doe",
+    "app_access": [1, 2, 5, 6],
+    "feature_access": [1, 2, 3, 4, 5],
+    "token_type": "access",
+    "inactivity_timeout_minutes": 30,
+    "jti": "unique-token-id",
+    "iat": 1732791600,
+    "exp": 1732795200
 }
 ```
 

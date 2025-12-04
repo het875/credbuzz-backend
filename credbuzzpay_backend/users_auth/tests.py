@@ -4,7 +4,9 @@ Tests for users_auth app
 from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import User, PasswordResetToken, UserSession
+from django.utils import timezone
+from datetime import timedelta
+from .models import User, PasswordResetToken, UserSession, LoginAttempt
 from .jwt_utils import JWTManager
 
 
@@ -53,6 +55,126 @@ class UserModelTests(TestCase):
         user = User(email='test@example.com', username='testuser')
         self.assertTrue(user.is_authenticated)
         self.assertFalse(user.is_anonymous)
+    
+    def test_user_code_auto_generation(self):
+        """Test that user_code is auto-generated if not provided"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        self.assertIsNotNone(user.user_code)
+        self.assertEqual(len(user.user_code), 6)
+
+
+class LoginAttemptTests(TestCase):
+    """Tests for LoginAttempt model and lockout logic"""
+    
+    def setUp(self):
+        self.user = User(email='test@example.com', username='testuser')
+        self.user.set_password('Test@1234')
+        self.user.save()
+    
+    def test_create_login_attempt(self):
+        """Test creating a login attempt record"""
+        attempt = LoginAttempt.get_or_create_for_identifier(
+            identifier='test@example.com',
+            identifier_type='EMAIL',
+            ip_address='127.0.0.1'
+        )
+        
+        self.assertEqual(attempt.identifier, 'test@example.com')
+        self.assertEqual(attempt.identifier_type, 'EMAIL')
+        self.assertEqual(attempt.attempt_count, 0)
+    
+    def test_record_failed_attempts(self):
+        """Test recording failed login attempts"""
+        attempt = LoginAttempt.get_or_create_for_identifier(
+            identifier='test@example.com',
+            identifier_type='EMAIL'
+        )
+        
+        # Record 4 failed attempts
+        for i in range(4):
+            result = attempt.record_failed_attempt()
+            self.assertEqual(result['remaining_attempts'], 4 - i)
+        
+        # Should still not be locked
+        is_locked, _ = attempt.is_locked_out()
+        self.assertFalse(is_locked)
+    
+    def test_lockout_after_max_attempts(self):
+        """Test lockout triggers after max attempts"""
+        attempt = LoginAttempt.get_or_create_for_identifier(
+            identifier='test@example.com',
+            identifier_type='EMAIL'
+        )
+        
+        # Record 5 failed attempts (max for first stage)
+        for _ in range(5):
+            attempt.record_failed_attempt()
+        
+        # Should now be locked
+        is_locked, message = attempt.is_locked_out()
+        self.assertTrue(is_locked)
+        self.assertIn('try again', message.lower())
+        self.assertEqual(attempt.lockout_stage, 1)
+    
+    def test_progressive_lockout_stages(self):
+        """Test progressive lockout through stages"""
+        attempt = LoginAttempt.get_or_create_for_identifier(
+            identifier='test@example.com',
+            identifier_type='EMAIL'
+        )
+        
+        # Go through first 3 lockout stages
+        for stage in range(3):
+            # Clear lockout for testing
+            attempt.lockout_until = None
+            attempt.attempt_count = 0
+            
+            # Trigger lockout
+            for _ in range(5):
+                attempt.record_failed_attempt()
+        
+        self.assertEqual(attempt.lockout_stage, 3)
+    
+    def test_successful_login_resets_attempts(self):
+        """Test that successful login resets attempt tracking"""
+        attempt = LoginAttempt.get_or_create_for_identifier(
+            identifier='test@example.com',
+            identifier_type='EMAIL'
+        )
+        
+        # Record some failed attempts
+        for _ in range(3):
+            attempt.record_failed_attempt()
+        
+        # Successful login
+        attempt.record_successful_login(user=self.user)
+        
+        self.assertEqual(attempt.attempt_count, 0)
+        self.assertEqual(attempt.lockout_stage, 0)
+        self.assertIsNone(attempt.lockout_until)
+    
+    def test_blocked_account(self):
+        """Test permanent block after all stages"""
+        attempt = LoginAttempt.get_or_create_for_identifier(
+            identifier='test@example.com',
+            identifier_type='EMAIL'
+        )
+        
+        # Go through all stages to reach blocked state
+        for stage in range(6):
+            attempt.lockout_until = None
+            attempt.attempt_count = 0
+            for _ in range(5):
+                attempt.record_failed_attempt()
+        
+        # Should be permanently blocked
+        self.assertTrue(attempt.is_blocked)
+        is_locked, message = attempt.is_locked_out()
+        self.assertTrue(is_locked)
+        self.assertIn('blocked', message.lower())
 
 
 class PasswordResetTokenTests(TestCase):
@@ -78,6 +200,48 @@ class PasswordResetTokenTests(TestCase):
         
         self.assertTrue(token.is_used)
         self.assertFalse(token.is_valid())
+
+
+class UserSessionTests(TestCase):
+    """Tests for UserSession model with inactivity timeout"""
+    
+    def setUp(self):
+        self.user = User(email='test@example.com', username='testuser')
+        self.user.set_password('Test@1234')
+        self.user.save()
+    
+    def test_session_activity_tracking(self):
+        """Test session activity timestamp updates"""
+        session = UserSession.objects.create(
+            user=self.user,
+            token_id='test-token-id',
+            expires_at=timezone.now() + timedelta(days=7),
+            is_active=True
+        )
+        
+        old_activity = session.last_activity
+        session.update_activity()
+        
+        self.assertGreaterEqual(session.last_activity, old_activity)
+    
+    def test_inactivity_expiry(self):
+        """Test session expiry due to inactivity"""
+        session = UserSession.objects.create(
+            user=self.user,
+            token_id='test-token-id',
+            expires_at=timezone.now() + timedelta(days=7),
+            is_active=True
+        )
+        
+        # Session is fresh, should not be expired
+        self.assertFalse(session.is_inactive_expired(inactivity_minutes=30))
+        
+        # Simulate old activity (31 minutes ago)
+        session.last_activity = timezone.now() - timedelta(minutes=31)
+        session.save()
+        
+        # Now should be expired
+        self.assertTrue(session.is_inactive_expired(inactivity_minutes=30))
 
 
 class JWTManagerTests(TestCase):
@@ -113,6 +277,16 @@ class JWTManagerTests(TestCase):
         self.assertEqual(payload['user_id'], self.user.id)
         self.assertEqual(payload['email'], self.user.email)
         self.assertEqual(payload['token_type'], 'access')
+    
+    def test_token_includes_user_details(self):
+        """Test that token includes user_code and user_role"""
+        token, _, _ = JWTManager.generate_access_token(self.user)
+        payload = JWTManager.decode_token(token)
+        
+        self.assertEqual(payload['user_code'], self.user.user_code)
+        self.assertEqual(payload['user_role'], self.user.user_role)
+        self.assertIn('app_access', payload)
+        self.assertIn('feature_access', payload)
     
     def test_verify_token(self):
         """Test verifying a token"""
@@ -169,15 +343,14 @@ class AuthAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data['success'])
     
-    def test_login_user(self):
-        """Test user login endpoint"""
-        # Create user first
+    def test_login_with_email(self):
+        """Test user login with email as identifier"""
         user = User(email='test@example.com', username='testuser')
         user.set_password('Test@1234')
         user.save()
         
         data = {
-            'email': 'test@example.com',
+            'identifier': 'test@example.com',
             'password': 'Test@1234'
         }
         response = self.client.post('/api/auth/login/', data, format='json')
@@ -185,11 +358,117 @@ class AuthAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
         self.assertIn('access_token', response.data['data']['tokens'])
+        self.assertIn('app_access', response.data['data'])
+        self.assertIn('feature_access', response.data['data'])
+    
+    def test_login_with_username(self):
+        """Test user login with username as identifier"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': 'testuser',
+            'password': 'Test@1234'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+    
+    def test_login_with_user_code(self):
+        """Test user login with user_code as identifier"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': user.user_code,
+            'password': 'Test@1234'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+    
+    def test_login_with_phone_number(self):
+        """Test user login with phone number as identifier"""
+        user = User(email='test@example.com', username='testuser', phone_number='+1234567890')
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': '+1234567890',
+            'password': 'Test@1234'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+    
+    def test_login_response_includes_permissions(self):
+        """Test login response includes app_access and feature_access"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': 'test@example.com',
+            'password': 'Test@1234'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('app_access', response.data['data'])
+        self.assertIn('feature_access', response.data['data'])
+        self.assertIn('session', response.data['data'])
+        self.assertIn('inactivity_timeout_minutes', response.data['data']['session'])
+    
+    def test_login_invalid_credentials_shows_remaining_attempts(self):
+        """Test login with invalid credentials shows remaining attempts"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': 'test@example.com',
+            'password': 'wrongpassword'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(response.data['success'])
+        self.assertIn('remaining_attempts', response.data['data'])
+    
+    def test_login_lockout_after_max_attempts(self):
+        """Test login lockout after max failed attempts"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        # Make 5 failed attempts
+        for _ in range(5):
+            data = {
+                'identifier': 'test@example.com',
+                'password': 'wrongpassword'
+            }
+            self.client.post('/api/auth/login/', data, format='json')
+        
+        # 6th attempt should be locked out
+        data = {
+            'identifier': 'test@example.com',
+            'password': 'wrongpassword'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertFalse(response.data['success'])
+        self.assertTrue(response.data['data']['is_locked'])
     
     def test_login_invalid_credentials(self):
         """Test login with invalid credentials"""
         data = {
-            'email': 'nonexistent@example.com',
+            'identifier': 'nonexistent@example.com',
             'password': 'wrongpassword'
         }
         response = self.client.post('/api/auth/login/', data, format='json')
@@ -199,14 +478,20 @@ class AuthAPITests(APITestCase):
     
     def test_get_profile_authenticated(self):
         """Test getting profile when authenticated"""
-        # Create and login user
         user = User(email='test@example.com', username='testuser')
         user.set_password('Test@1234')
         user.save()
         
-        token, _, _ = JWTManager.generate_access_token(user)
+        # Create session for activity tracking
+        tokens = JWTManager.generate_tokens(user)
+        UserSession.objects.create(
+            user=user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            is_active=True
+        )
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
         response = self.client.get('/api/auth/profile/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -224,9 +509,15 @@ class AuthAPITests(APITestCase):
         user.set_password('Test@1234')
         user.save()
         
-        token, _, _ = JWTManager.generate_access_token(user)
+        tokens = JWTManager.generate_tokens(user)
+        UserSession.objects.create(
+            user=user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            is_active=True
+        )
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
         data = {
             'first_name': 'Updated',
             'last_name': 'Name'
@@ -276,9 +567,15 @@ class AuthAPITests(APITestCase):
         user.set_password('Test@1234')
         user.save()
         
-        token, _, _ = JWTManager.generate_access_token(user)
+        tokens = JWTManager.generate_tokens(user)
+        UserSession.objects.create(
+            user=user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            is_active=True
+        )
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
         data = {
             'current_password': 'Test@1234',
             'new_password': 'NewPass@1234',
@@ -295,9 +592,15 @@ class AuthAPITests(APITestCase):
         user.set_password('Test@1234')
         user.save()
         
-        token, _, _ = JWTManager.generate_access_token(user)
+        tokens = JWTManager.generate_tokens(user)
+        UserSession.objects.create(
+            user=user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            is_active=True
+        )
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
         response = self.client.get('/api/auth/users/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -314,9 +617,15 @@ class AuthAPITests(APITestCase):
         user2.set_password('Test@1234')
         user2.save()
         
-        token, _, _ = JWTManager.generate_access_token(user1)
+        tokens = JWTManager.generate_tokens(user1)
+        UserSession.objects.create(
+            user=user1,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            is_active=True
+        )
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
         response = self.client.delete(f'/api/auth/users/{user2.id}/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -334,7 +643,6 @@ class AuthAPITests(APITestCase):
         tokens = JWTManager.generate_tokens(user)
         
         # Create session for refresh token
-        from django.utils import timezone
         UserSession.objects.create(
             user=user,
             token_id=tokens['refresh_token_id'],
@@ -348,4 +656,28 @@ class AuthAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
         self.assertIn('access_token', response.data['data'])
+    
+    def test_refresh_token_fails_on_inactive_session(self):
+        """Test token refresh fails if session is expired due to inactivity"""
+        user = User(email='test@example.com', username='testuser')
+        user.set_password('Test@1234')
+        user.save()
+        
+        tokens = JWTManager.generate_tokens(user)
+        
+        # Create session with old activity (expired)
+        session = UserSession.objects.create(
+            user=user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            is_active=True
+        )
+        # Simulate inactivity
+        session.last_activity = timezone.now() - timedelta(minutes=31)
+        session.save()
+        
+        data = {'refresh_token': tokens['refresh_token']}
+        response = self.client.post('/api/auth/refresh-token/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 

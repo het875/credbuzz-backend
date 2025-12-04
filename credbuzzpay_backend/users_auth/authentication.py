@@ -10,12 +10,22 @@ import jwt
 
 class JWTAuthentication(BaseAuthentication):
     """
-    Custom JWT Authentication class
+    Custom JWT Authentication class with inactivity timeout check.
+    
+    Features:
+    - Validates JWT access tokens
+    - Checks session inactivity (30 minutes like bank apps)
+    - Updates last activity on each request
+    - Returns user info from token for middleware use
     """
     
     def authenticate(self, request):
         """
         Authenticate the request and return a tuple of (user, auth_info) or None.
+        
+        The auth_info (request.auth) contains the full token payload including:
+        - user_id, email, username, user_code, user_role
+        - app_access, feature_access (RBAC permissions)
         """
         auth_header = request.headers.get('Authorization')
         
@@ -53,12 +63,51 @@ class JWTAuthentication(BaseAuthentication):
             except User.DoesNotExist:
                 raise AuthenticationFailed('User not found or inactive.')
             
+            # Check session inactivity timeout (like bank apps)
+            # This requires finding the session from a refresh token
+            # For access tokens, we check the inactivity from user's sessions
+            self._check_session_inactivity(user)
+            
             return (user, payload)
             
         except AuthenticationFailed:
             raise
         except Exception as e:
             raise AuthenticationFailed(f'Authentication failed: {str(e)}')
+    
+    def _check_session_inactivity(self, user):
+        """
+        Check if user has any active session that's not expired due to inactivity.
+        Also updates the last activity timestamp.
+        """
+        inactivity_timeout = JWTManager.get_inactivity_timeout()
+        
+        # Get user's active sessions
+        active_sessions = UserSession.objects.filter(
+            user=user,
+            is_active=True
+        )
+        
+        if not active_sessions.exists():
+            # No active session means token might be from before we added this check
+            # Allow it but log warning
+            return
+        
+        # Check if all sessions have expired due to inactivity
+        all_inactive = True
+        for session in active_sessions:
+            if not session.is_inactive_expired(inactivity_timeout):
+                all_inactive = False
+                # Update activity for the valid session
+                session.update_activity()
+                break
+        
+        if all_inactive:
+            # Invalidate all sessions
+            active_sessions.update(is_active=False)
+            raise AuthenticationFailed(
+                'Session expired due to inactivity. Please login again.'
+            )
     
     def authenticate_header(self, request):
         """
