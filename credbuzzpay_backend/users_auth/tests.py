@@ -311,17 +311,20 @@ class AuthAPITests(APITestCase):
         """Test user registration endpoint"""
         data = {
             'email': 'newuser@example.com',
-            'username': 'newuser',
+            'first_name': 'New',
+            'last_name': 'User',
+            'phone_number': '9876543210',
             'password': 'Test@1234',
             'confirm_password': 'Test@1234',
-            'first_name': 'New',
-            'last_name': 'User'
         }
         response = self.client.post('/api/auth/register/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(response.data['success'])
-        self.assertIn('tokens', response.data['data'])
+        # Now registration requires OTP verification
+        self.assertIn('verification_required', response.data['data'])
+        self.assertTrue(response.data['data']['verification_required']['email'])
+        self.assertTrue(response.data['data']['verification_required']['phone'])
     
     def test_register_duplicate_email(self):
         """Test registration with duplicate email fails"""
@@ -334,7 +337,9 @@ class AuthAPITests(APITestCase):
         
         data = {
             'email': 'existing@example.com',
-            'username': 'newuser',
+            'first_name': 'New',
+            'last_name': 'User',
+            'phone_number': '9876543211',
             'password': 'Test@1234',
             'confirm_password': 'Test@1234'
         }
@@ -345,7 +350,8 @@ class AuthAPITests(APITestCase):
     
     def test_login_with_email(self):
         """Test user login with email as identifier"""
-        user = User(email='test@example.com', username='testuser')
+        # Create verified user (DEVELOPER role doesn't need OTP verification)
+        user = User(email='test@example.com', username='testuser', user_role='DEVELOPER')
         user.set_password('Test@1234')
         user.save()
         
@@ -363,7 +369,8 @@ class AuthAPITests(APITestCase):
     
     def test_login_with_username(self):
         """Test user login with username as identifier"""
-        user = User(email='test@example.com', username='testuser')
+        # Create verified user (SUPER_ADMIN role doesn't need OTP verification)
+        user = User(email='test@example.com', username='testuser', user_role='SUPER_ADMIN')
         user.set_password('Test@1234')
         user.save()
         
@@ -378,7 +385,8 @@ class AuthAPITests(APITestCase):
     
     def test_login_with_user_code(self):
         """Test user login with user_code as identifier"""
-        user = User(email='test@example.com', username='testuser')
+        # Create verified user (ADMIN role doesn't need OTP verification for testing)
+        user = User(email='test@example.com', username='testuser', user_role='ADMIN')
         user.set_password('Test@1234')
         user.save()
         
@@ -393,12 +401,13 @@ class AuthAPITests(APITestCase):
     
     def test_login_with_phone_number(self):
         """Test user login with phone number as identifier"""
-        user = User(email='test@example.com', username='testuser', phone_number='+1234567890')
+        # Create verified user
+        user = User(email='test@example.com', username='testuser', phone_number='1234567890', user_role='DEVELOPER')
         user.set_password('Test@1234')
         user.save()
         
         data = {
-            'identifier': '+1234567890',
+            'identifier': '1234567890',
             'password': 'Test@1234'
         }
         response = self.client.post('/api/auth/login/', data, format='json')
@@ -408,7 +417,8 @@ class AuthAPITests(APITestCase):
     
     def test_login_response_includes_permissions(self):
         """Test login response includes app_access and feature_access"""
-        user = User(email='test@example.com', username='testuser')
+        # Create verified user (DEVELOPER role)
+        user = User(email='test@example.com', username='testuser', user_role='DEVELOPER')
         user.set_password('Test@1234')
         user.save()
         
@@ -423,6 +433,43 @@ class AuthAPITests(APITestCase):
         self.assertIn('feature_access', response.data['data'])
         self.assertIn('session', response.data['data'])
         self.assertIn('inactivity_timeout_minutes', response.data['data']['session'])
+    
+    def test_login_end_user_requires_verification(self):
+        """Test that END_USER login requires email and phone verification"""
+        # Create unverified END_USER
+        user = User(email='enduser@example.com', username='enduser', user_role='END_USER')
+        user.is_email_verified = False
+        user.is_phone_verified = False
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': 'enduser@example.com',
+            'password': 'Test@1234'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        # Should fail because email and phone not verified
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(response.data['success'])
+    
+    def test_login_verified_end_user_succeeds(self):
+        """Test that verified END_USER can login"""
+        # Create verified END_USER
+        user = User(email='enduser@example.com', username='enduser', user_role='END_USER')
+        user.is_email_verified = True
+        user.is_phone_verified = True
+        user.set_password('Test@1234')
+        user.save()
+        
+        data = {
+            'identifier': 'enduser@example.com',
+            'password': 'Test@1234'
+        }
+        response = self.client.post('/api/auth/login/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
     
     def test_login_invalid_credentials_shows_remaining_attempts(self):
         """Test login with invalid credentials shows remaining attempts"""

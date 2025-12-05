@@ -36,6 +36,12 @@ urlpatterns = [
     path('user-role-assignments/<int:pk>/', views.UserRoleAssignmentDetailView.as_view(), name='user-role-assignment-detail'),
     path('user-role-assignments/bulk/', views.BulkUserRoleAssignmentView.as_view(), name='user-role-assignment-bulk'),
     
+    # Access Management for SP/Developer (to assign/revoke access to Admin/Client)
+    path('users/<int:user_id>/access/', views.UserAccessOverviewView.as_view(), name='user-access-overview'),
+    path('users/<int:user_id>/assign-access/', views.AssignAccessToUserView.as_view(), name='assign-access'),
+    path('users/<int:user_id>/revoke-access/', views.RevokeAccessFromUserView.as_view(), name='revoke-access'),
+    path('all-access-items/', views.AllAppsAndFeaturesView.as_view(), name='all-access-items'),
+    
     # Permission Checks
     path('check-permission/', views.CheckPermissionView.as_view(), name='check-permission'),
     path('my-permissions/', views.MyPermissionsView.as_view(), name='my-permissions'),

@@ -8,15 +8,20 @@ import re
 
 class UserRegistrationSerializer(serializers.Serializer):
     """
-    Serializer for user registration
+    Serializer for user registration.
+    Collects: First Name, Middle Name, Last Name, Email, Mobile Number, Password, Confirm Password
+    After registration, OTP verification is required for both email and phone.
     """
+    first_name = serializers.CharField(max_length=100, required=True)
+    middle_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=100, required=True)
     email = serializers.EmailField(max_length=255)
-    username = serializers.CharField(max_length=150)
+    phone_number = serializers.CharField(max_length=20, required=True)
     password = serializers.CharField(min_length=8, write_only=True)
     confirm_password = serializers.CharField(min_length=8, write_only=True)
-    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    
+    # Username is auto-generated from email if not provided
+    username = serializers.CharField(max_length=150, required=False, allow_blank=True)
     
     def validate_email(self, value):
         """Validate email is unique"""
@@ -24,8 +29,26 @@ class UserRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError("A user with this email already exists.")
         return value.lower()
     
+    def validate_phone_number(self, value):
+        """Validate phone number is unique and valid format"""
+        # Remove any spaces, dashes or parentheses
+        cleaned = re.sub(r'[\s\-\(\)]', '', value)
+        
+        # Check if phone number is valid (10 digits)
+        if not re.match(r'^\d{10}$', cleaned):
+            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
+        
+        # Check if phone number already exists
+        if User.objects.filter(phone_number=cleaned).exists():
+            raise serializers.ValidationError("A user with this phone number already exists.")
+        
+        return cleaned
+    
     def validate_username(self, value):
         """Validate username is unique and follows pattern"""
+        if not value:
+            return value  # Will be auto-generated
+            
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("A user with this username already exists.")
         
@@ -52,20 +75,38 @@ class UserRegistrationSerializer(serializers.Serializer):
         return value
     
     def validate(self, data):
-        """Validate password confirmation"""
+        """Validate password confirmation and auto-generate username"""
         if data.get('password') != data.get('confirm_password'):
             raise serializers.ValidationError({
                 "confirm_password": "Passwords do not match."
             })
+        
+        # Auto-generate username from email if not provided
+        if not data.get('username'):
+            email = data.get('email', '')
+            base_username = email.split('@')[0].lower()
+            # Clean username to only allow valid characters
+            base_username = re.sub(r'[^a-zA-Z0-9_]', '_', base_username)
+            
+            # Ensure unique username
+            username = base_username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}_{counter}"
+                counter += 1
+            data['username'] = username
+        
         return data
     
     def create(self, validated_data):
-        """Create new user"""
+        """Create new user (not verified until OTP confirmation)"""
         validated_data.pop('confirm_password')
         password = validated_data.pop('password')
         
         user = User(**validated_data)
         user.set_password(password)
+        user.is_verified = False  # User needs to verify email and phone via OTP
+        user.user_role = 'END_USER'  # Default role for new registrations
         user.save()
         
         return user
@@ -166,6 +207,22 @@ class UserLoginSerializer(serializers.Serializer):
                 'non_field_errors': ["Invalid credentials."],
                 '_auth_failed': True  # Flag for lockout tracking
             })
+        
+        # Check if user has verified email and phone (for END_USER role)
+        # DEVELOPER and SUPER_ADMIN don't need OTP verification
+        if user.user_role == 'END_USER':
+            if not user.is_email_verified or not user.is_phone_verified:
+                verification_needed = []
+                if not user.is_email_verified:
+                    verification_needed.append('email')
+                if not user.is_phone_verified:
+                    verification_needed.append('phone')
+                
+                raise serializers.ValidationError({
+                    'non_field_errors': [f"Please verify your {' and '.join(verification_needed)} before logging in."],
+                    '_verification_required': True,
+                    '_verification_needed': verification_needed,
+                })
         
         data['user'] = user
         return data
@@ -304,11 +361,14 @@ class UserSerializer(serializers.Serializer):
     email = serializers.EmailField(read_only=True)
     username = serializers.CharField(read_only=True)
     first_name = serializers.CharField(read_only=True)
+    middle_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
     phone_number = serializers.CharField(read_only=True)
     user_role = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_verified = serializers.BooleanField(read_only=True)
+    is_email_verified = serializers.BooleanField(read_only=True)
+    is_phone_verified = serializers.BooleanField(read_only=True)
     is_deleted = serializers.BooleanField(read_only=True)
     deleted_at = serializers.DateTimeField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
@@ -322,6 +382,7 @@ class UserUpdateSerializer(serializers.Serializer):
     Serializer for updating user details
     """
     first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    middle_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
     username = serializers.CharField(max_length=150, required=False)
@@ -367,3 +428,59 @@ class TokenRefreshSerializer(serializers.Serializer):
     Serializer for token refresh
     """
     refresh_token = serializers.CharField()
+
+
+class UserActivityLogSerializer(serializers.Serializer):
+    """
+    Serializer for user activity logs
+    """
+    id = serializers.IntegerField(read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_code = serializers.CharField(source='user.user_code', read_only=True)
+    activity_type = serializers.CharField(read_only=True)
+    action = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    entity_type = serializers.CharField(read_only=True)
+    entity_id = serializers.CharField(read_only=True)
+    metadata = serializers.JSONField(read_only=True)
+    ip_address = serializers.CharField(read_only=True)
+    user_agent = serializers.CharField(read_only=True)
+    request_method = serializers.CharField(read_only=True)
+    request_path = serializers.CharField(read_only=True)
+    is_success = serializers.BooleanField(read_only=True)
+    error_message = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+
+class UserProfileWithAccessSerializer(serializers.Serializer):
+    """
+    Serializer for user profile with KYC status and access information.
+    """
+    # User Info
+    id = serializers.IntegerField(read_only=True)
+    user_code = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    first_name = serializers.CharField(read_only=True)
+    middle_name = serializers.CharField(read_only=True)
+    last_name = serializers.CharField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+    phone_number = serializers.CharField(read_only=True)
+    user_role = serializers.CharField(read_only=True)
+    
+    # Verification status
+    is_active = serializers.BooleanField(read_only=True)
+    is_verified = serializers.BooleanField(read_only=True)
+    is_email_verified = serializers.BooleanField(read_only=True)
+    is_phone_verified = serializers.BooleanField(read_only=True)
+    
+    # Timestamps
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    last_login = serializers.DateTimeField(read_only=True)
+    
+    # These will be added dynamically in the view
+    kyc_status = serializers.DictField(read_only=True, required=False)
+    app_access = serializers.ListField(read_only=True, required=False)
+    feature_access = serializers.ListField(read_only=True, required=False)

@@ -34,16 +34,24 @@ from .models import (
 # TEST UTILITIES
 # =============================================================================
 
+# Counter to generate unique phone numbers for tests
+_phone_counter = [0]
+
 def create_test_user(email='testuser@example.com', password='TestPass@123', 
                      user_role='END_USER', is_active=True):
-    """Create a test user."""
+    """Create a test user with unique phone number."""
+    _phone_counter[0] += 1
+    phone_number = f'987654{_phone_counter[0]:04d}'
+    
     user = User(
         email=email,
         username=email.split('@')[0],
         first_name='Test',
         last_name='User',
-        phone_number='9876543210',
-        user_role=user_role
+        phone_number=phone_number,
+        user_role=user_role.upper(),
+        is_email_verified=True,
+        is_phone_verified=True,
     )
     user.set_password(password)
     user.is_active = is_active

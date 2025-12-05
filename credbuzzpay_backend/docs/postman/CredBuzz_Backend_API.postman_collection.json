@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "credbuzz-rbac-collection",
 		"name": "CredBuzz Backend API",
-		"description": "Complete API collection for CredBuzz Backend including User Authentication, RBAC (Role-Based Access Control), and KYC Verification endpoints.\n\n## Dynamic Login\nLogin uses a single `identifier` field that auto-detects:\n- **Email**: Contains @ (e.g., user@example.com)\n- **Phone**: Starts with + (e.g., +1234567890)\n- **User Code**: 6 alphanumeric chars (e.g., CGX0R0)\n- **Username**: Default fallback\n\n## Login Security\n- Progressive lockout: 5 attempts → 2min → 5min → 10min → 30min → 60min → blocked\n- Session inactivity timeout: 30 minutes (like bank apps)\n- JWT includes: user_code, user_role, app_access, feature_access\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## KYC Flow\n1. Start KYC → 2. OTP Verification → 3. Identity Proof (Aadhaar/PAN) → 4. Business Details → 5. Verification Images → 6. Bank Details → 7. Submit for Review\n\n## KYC Security\n- Aadhaar, PAN, Bank Account numbers are encrypted\n- Masked in responses (XXXX-XXXX-9012)\n- Max file size: 5MB",
+		"description": "Complete API collection for CredBuzz Backend including User Authentication, RBAC (Role-Based Access Control), and KYC Verification endpoints.\n\n## Registration Flow (NEW)\n1. Register with first_name, middle_name, last_name, email, phone_number, password\n2. Verify Email OTP\n3. Verify Phone OTP\n4. Login (END_USER requires verified email & phone)\n\n## Dynamic Login\nLogin uses a single `identifier` field that auto-detects:\n- **Email**: Contains @ (e.g., user@example.com)\n- **Phone**: Starts with + (e.g., +1234567890)\n- **User Code**: 6 alphanumeric chars (e.g., CGX0R0)\n- **Username**: Default fallback\n\n## Login Security\n- Progressive lockout: 5 attempts → 2min → 5min → 10min → 30min → 60min → blocked\n- Session inactivity timeout: 30 minutes (like bank apps)\n- JWT includes: user_code, user_role, app_access, feature_access\n- END_USER must verify email AND phone before login\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## KYC Flow\n1. Start KYC → 2. Aadhaar Details → 3. Aadhaar Images → 4. PAN Details → 5. PAN Image → 6. Business Details → 7. Verification Images → 8. Bank Details → 9. Submit for Review\n\n## KYC Security\n- Aadhaar, PAN, Bank Account numbers are encrypted\n- Masked in responses (XXXX-XXXX-9012)\n- Max file size: 5MB\n\n## New Features\n- User Activity Logs\n- Full Profile API with KYC Status\n- Access Management APIs (assign/revoke access)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -40,6 +40,26 @@
 			"key": "kyc_application_id",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "registered_email",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "email_otp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "phone_otp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "target_user_id",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"auth": {
@@ -56,6 +76,145 @@
 		{
 			"name": "🚀 Quick Start",
 			"item": [
+				{
+					"name": "1. Register New User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('registered_email', jsonData.data.user.email);",
+									"    if (jsonData.data.test_otps) {",
+									"        pm.collectionVariables.set('email_otp', jsonData.data.test_otps.email_otp);",
+									"        pm.collectionVariables.set('phone_otp', jsonData.data.test_otps.phone_otp);",
+									"    }",
+									"    console.log('✅ User registered! Run steps 2 & 3 to verify OTPs');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Test\",\n    \"middle_name\": \"\",\n    \"last_name\": \"User\",\n    \"email\": \"testuser@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"Test@1234\",\n    \"confirm_password\": \"Test@1234\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register", ""]
+						},
+						"description": "**STEP 1:** Register a new user. OTPs are auto-saved to variables."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Verify Email OTP",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"{{email_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "verify-registration-otp", ""]
+						},
+						"description": "**STEP 2:** Verify email OTP"
+					},
+					"response": []
+				},
+				{
+					"name": "3. Verify Phone OTP",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"PHONE\",\n    \"otp_code\": \"{{phone_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "verify-registration-otp", ""]
+						},
+						"description": "**STEP 3:** Verify phone OTP. After this, user can login!"
+					},
+					"response": []
+				},
+				{
+					"name": "4. Login as Registered User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    console.log('✅ Login successful! Token saved.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"{{registered_email}}\",\n    \"password\": \"Test@1234\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						},
+						"description": "**STEP 4:** Login with verified user"
+					},
+					"response": []
+				},
 				{
 					"name": "Login as Developer",
 					"event": [
@@ -155,14 +314,40 @@
 					"response": []
 				}
 			],
-			"description": "Quick start endpoints for testing. Use these to quickly login as different role users.\n\n**Test Accounts:**\n- Developer: dev@credbuzz.com / Developer@123 (CGX0R0)\n- Super Admin: superadmin@credbuzz.com / SuperAdmin@123 (VYO541)"
+			"description": "Quick start endpoints for testing. Run steps 1-4 to test the complete registration flow.\n\n**New User Registration Flow:**\n1. Register → 2. Verify Email OTP → 3. Verify Phone OTP → 4. Login\n\n**Test Accounts:**\n- Developer: dev@credbuzz.com / Developer@123 (CGX0R0)\n- Super Admin: superadmin@credbuzz.com / SuperAdmin@123 (VYO541)"
 		},
 		{
 			"name": "🔐 Authentication",
 			"item": [
 				{
 					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('registered_email', jsonData.data.user.email);",
+									"    if (jsonData.data.test_otps) {",
+									"        pm.collectionVariables.set('email_otp', jsonData.data.test_otps.email_otp);",
+									"        pm.collectionVariables.set('phone_otp', jsonData.data.test_otps.phone_otp);",
+									"        console.log('Email OTP:', jsonData.data.test_otps.email_otp);",
+									"        console.log('Phone OTP:', jsonData.data.test_otps.phone_otp);",
+									"    }",
+									"    console.log('User registered! Email:', jsonData.data.user.email);",
+									"    console.log('Verification required - Email:', jsonData.data.verification_required.email);",
+									"    console.log('Verification required - Phone:', jsonData.data.verification_required.phone);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -172,14 +357,144 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"user@example.com\",\n    \"username\": \"johndoe\",\n    \"password\": \"SecurePass123!\",\n    \"confirm_password\": \"SecurePass123!\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"phone_number\": \"+1234567890\"\n}"
+							"raw": "{\n    \"first_name\": \"John\",\n    \"middle_name\": \"K\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"SecurePass123!\",\n    \"confirm_password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/register/",
 							"host": ["{{base_url}}"],
 							"path": ["auth", "register", ""]
 						},
-						"description": "Register a new user account. The user will be assigned:\n- **user_role**: END_USER (default)\n- **user_code**: Auto-generated 6-character unique code (e.g., ABC123)\n\nTo upgrade role, an Admin+ must assign via RBAC endpoints."
+						"description": "Register a new user account.\n\n**Required Fields:**\n- first_name, last_name, email, phone_number, password, confirm_password\n\n**Optional Fields:**\n- middle_name\n\n**After Registration:**\n- OTPs sent to email AND phone\n- User must verify both before login (for END_USER role)\n- test_otps returned in response for development testing\n\n**User is assigned:**\n- user_role: END_USER (default)\n- user_code: Auto-generated 6-character unique code"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Registration OTP (Email)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    console.log('Email verified:', jsonData.data.is_email_verified);",
+									"    console.log('Phone verified:', jsonData.data.is_phone_verified);",
+									"    console.log('Fully verified:', jsonData.data.is_fully_verified);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"{{email_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "verify-registration-otp", ""]
+						},
+						"description": "Verify Email OTP after registration.\n\n**otp_type options:**\n- EMAIL: Verify email address\n- PHONE: Verify phone number"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Registration OTP (Phone)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    console.log('Email verified:', jsonData.data.is_email_verified);",
+									"    console.log('Phone verified:', jsonData.data.is_phone_verified);",
+									"    console.log('Fully verified:', jsonData.data.is_fully_verified);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"PHONE\",\n    \"otp_code\": \"{{phone_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "verify-registration-otp", ""]
+						},
+						"description": "Verify Phone OTP after registration.\n\n**Note:** END_USER must verify BOTH email and phone before login."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Registration OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.test_otp) {",
+									"    var otpType = JSON.parse(pm.request.body.raw).otp_type;",
+									"    if (otpType === 'EMAIL') {",
+									"        pm.collectionVariables.set('email_otp', jsonData.data.test_otp);",
+									"    } else {",
+									"        pm.collectionVariables.set('phone_otp', jsonData.data.test_otp);",
+									"    }",
+									"    console.log('New OTP:', jsonData.data.test_otp);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/resend-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "resend-registration-otp", ""]
+						},
+						"description": "Resend OTP for registration verification.\n\n**otp_type options:**\n- EMAIL: Resend email OTP\n- PHONE: Resend phone OTP"
 					},
 					"response": []
 				},
@@ -343,7 +658,21 @@
 							"host": ["{{base_url}}"],
 							"path": ["auth", "me", ""]
 						},
-						"description": "Get the authenticated user's profile."
+						"description": "Get the authenticated user's basic profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Full Profile (with KYC & Access)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/profile-full/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "profile-full", ""]
+						},
+						"description": "Get comprehensive profile including:\n- User details (name, email, phone, verification status)\n- KYC status (application_id, status, mega_step, current_step, completion %)\n- App access (apps user can access with permissions)\n- Feature access (features user can access with permissions)"
 					},
 					"response": []
 				},
@@ -582,6 +911,132 @@
 				}
 			],
 			"description": "User management CRUD operations including soft delete, hard delete, and restore."
+		},
+		{
+			"name": "📊 User Activity Logs",
+			"item": [
+				{
+					"name": "Get All Activity Logs (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/activity-logs/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "activity-logs", ""]
+						},
+						"description": "Get all user activity logs. Requires Admin+ role.\n\n**Activity Types:**\n- LOGIN, LOGOUT\n- PROFILE_UPDATE\n- PASSWORD_CHANGE, PASSWORD_RESET\n- KYC_SUBMIT, KYC_APPROVED, KYC_REJECTED\n- ACCOUNT_LOCKED, ACCOUNT_UNLOCKED"
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Activity Logs by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/activity-logs/?user_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "activity-logs", ""],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get activity logs for a specific user."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Activity Logs by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/activity-logs/?activity_type=LOGIN",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "activity-logs", ""],
+							"query": [
+								{
+									"key": "activity_type",
+									"value": "LOGIN"
+								}
+							]
+						},
+						"description": "Get activity logs filtered by activity type."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Activity Logs by Date Range",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/activity-logs/?start_date=2024-01-01&end_date=2024-12-31&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "activity-logs", ""],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2024-01-01"
+								},
+								{
+									"key": "end_date",
+									"value": "2024-12-31"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get activity logs within a date range."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Activity",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/my-activity/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "my-activity", ""]
+						},
+						"description": "Get current user's activity logs. Available to all authenticated users."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Activity (with Limit)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/my-activity/?activity_type=LOGIN&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "my-activity", ""],
+							"query": [
+								{
+									"key": "activity_type",
+									"value": "LOGIN"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get current user's activity logs with filters."
+					},
+					"response": []
+				}
+			],
+			"description": "User activity logging endpoints. Track user actions like login, logout, profile updates, KYC submissions, etc."
 		},
 		{
 			"name": "🎭 RBAC - Roles",
@@ -1503,6 +1958,155 @@
 				}
 			],
 			"description": "Audit log endpoints for tracking changes."
+		},
+		{
+			"name": "🔐 Access Management",
+			"item": [
+				{
+					"name": "Get All Apps & Features (for SP/Developer)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/all-access-items/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "all-access-items", ""]
+						},
+						"description": "Get complete list of all apps, features, and roles for access assignment.\n\n**Use Case:** SP/Developer uses this to see all available access items before assigning to Admin/Client users.\n\n**Returns:**\n- apps: List of all apps with their features\n- roles: List of all roles\n- total_apps, total_features, total_roles counts"
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Access Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "access", ""]
+						},
+						"description": "Get comprehensive access overview for a specific user.\n\n**Returns:**\n- user: Basic user info\n- roles: Assigned roles with timestamps\n- apps: Apps user can access with permissions\n- features: Features user can access with permissions\n- kyc_status: User's KYC application status"
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Access to User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_code\": \"ADMIN\",\n    \"app_codes\": [\"USER_MGMT\", \"REPORTS\"],\n    \"feature_codes\": [\"CREATE_USER\", \"VIEW_REPORT\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/assign-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "assign-access", ""]
+						},
+						"description": "Assign role, apps, and/or features to a user.\n\n**All fields are optional:**\n- role_code: Assign a role (will update user.user_role)\n- app_codes: Array of app codes to grant access\n- feature_codes: Array of feature codes to grant access\n\n**Permissions:**\n- Only can assign roles at or below your level\n- Super Admin/Developer only"
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Role Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_code\": \"CLIENT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/assign-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "assign-access", ""]
+						},
+						"description": "Assign only a role to a user."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Apps Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app_codes\": [\"USER_MGMT\", \"KYC_MGMT\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/assign-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "assign-access", ""]
+						},
+						"description": "Assign only apps to a user."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Access from User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_code\": \"ADMIN\",\n    \"app_codes\": [\"REPORTS\"],\n    \"feature_codes\": [\"CREATE_USER\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/revoke-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "revoke-access", ""]
+						},
+						"description": "Revoke specific access from a user.\n\n**Options:**\n- role_code: Revoke a specific role\n- app_codes: Revoke specific app access\n- feature_codes: Revoke specific feature access\n- revoke_all: true - Revoke ALL access"
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke All Access from User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"revoke_all\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/revoke-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "revoke-access", ""]
+						},
+						"description": "Revoke ALL access from a user (all roles, apps, features)."
+					},
+					"response": []
+				}
+			],
+			"description": "Access management endpoints for SP/Developer to assign and revoke access to users.\n\n**Workflow:**\n1. Use 'Get All Apps & Features' to see available items\n2. Use 'Get User Access Overview' to see current user access\n3. Use 'Assign Access' to grant new access\n4. Use 'Revoke Access' to remove access"
 		},
 		{
 			"name": "📋 KYC Verification",

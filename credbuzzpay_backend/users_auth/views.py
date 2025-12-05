@@ -28,8 +28,24 @@ from .authentication import JWTAuthentication, get_client_ip, get_user_agent
 
 class RegisterView(APIView):
     """
-    API endpoint for user registration
+    API endpoint for user registration.
+    
+    Step 1: User provides First Name, Middle Name, Last Name, Email, Mobile Number, Password.
+    Step 2: After registration, OTPs are sent to email and phone for verification.
+    Step 3: User must verify both OTPs before they can login.
+    
     POST /api/auth/register/
+    
+    Request body:
+    {
+        "first_name": "John",
+        "middle_name": "K",           # Optional
+        "last_name": "Doe",
+        "email": "john@example.com",
+        "phone_number": "9876543210",
+        "password": "SecurePass123",
+        "confirm_password": "SecurePass123"
+    }
     """
     permission_classes = [AllowAny]
     
@@ -39,27 +55,51 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             
-            # Generate tokens
-            tokens = JWTManager.generate_tokens(user)
+            # Import OTP model from kyc_verification
+            from kyc_verification.models import OTPVerification, OTPType
+            import random
             
-            # Create session
-            UserSession.objects.create(
+            # Generate and send OTPs for both email and phone
+            otp_data = {
+                'email_otp': None,
+                'phone_otp': None,
+            }
+            
+            # Generate Email OTP
+            email_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            email_otp = OTPVerification.objects.create(
                 user=user,
-                token_id=tokens['refresh_token_id'],
-                expires_at=tokens['refresh_token_expiry'],
+                otp_type=OTPType.EMAIL,
+                otp_code=email_otp_code,
+                expires_at=timezone.now() + timezone.timedelta(minutes=10),
                 ip_address=get_client_ip(request),
                 user_agent=get_user_agent(request)
             )
+            otp_data['email_otp'] = email_otp_code  # In production, send via email service
+            
+            # Generate Phone OTP
+            phone_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            phone_otp = OTPVerification.objects.create(
+                user=user,
+                otp_type=OTPType.PHONE,
+                otp_code=phone_otp_code,
+                expires_at=timezone.now() + timezone.timedelta(minutes=10),
+                ip_address=get_client_ip(request),
+                user_agent=get_user_agent(request)
+            )
+            otp_data['phone_otp'] = phone_otp_code  # In production, send via SMS service
             
             return Response({
                 'success': True,
-                'message': 'User registered successfully.',
+                'message': 'User registered successfully. Please verify your email and phone number with OTP.',
                 'data': {
                     'user': UserSerializer(user).data,
-                    'tokens': {
-                        'access_token': tokens['access_token'],
-                        'refresh_token': tokens['refresh_token'],
-                    }
+                    'verification_required': {
+                        'email': True,
+                        'phone': True,
+                    },
+                    # For testing purposes only - remove in production
+                    'test_otps': otp_data
                 }
             }, status=status.HTTP_201_CREATED)
         
@@ -752,3 +792,461 @@ class UserActivateView(APIView):
             'data': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
 
+
+# =============================================================================
+# OTP VERIFICATION ENDPOINTS FOR REGISTRATION
+# =============================================================================
+
+class VerifyRegistrationOTPView(APIView):
+    """
+    API endpoint for verifying OTP during registration.
+    User must verify both email and phone OTPs after registration.
+    
+    POST /api/auth/verify-registration-otp/
+    
+    Request body:
+    {
+        "email": "john@example.com",
+        "otp_type": "EMAIL",  // or "PHONE"
+        "otp_code": "123456"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        otp_type = request.data.get('otp_type')
+        otp_code = request.data.get('otp_code')
+        
+        if not all([email, otp_type, otp_code]):
+            return Response({
+                'success': False,
+                'message': 'Email, OTP type, and OTP code are required.',
+                'errors': {
+                    'email': ['This field is required.'] if not email else [],
+                    'otp_type': ['This field is required.'] if not otp_type else [],
+                    'otp_code': ['This field is required.'] if not otp_code else [],
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find user by email
+        try:
+            user = User.objects.get(email=email.lower())
+        except User.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'User not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Import OTP model
+        from kyc_verification.models import OTPVerification, OTPType
+        
+        # Validate OTP type
+        valid_types = ['EMAIL', 'PHONE']
+        if otp_type.upper() not in valid_types:
+            return Response({
+                'success': False,
+                'message': f'Invalid OTP type. Must be one of: {", ".join(valid_types)}',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get the latest active OTP for this user and type
+        otp_record = OTPVerification.objects.filter(
+            user=user,
+            otp_type=otp_type.upper(),
+            is_verified=False
+        ).order_by('-created_at').first()
+        
+        if not otp_record:
+            return Response({
+                'success': False,
+                'message': f'No active OTP found for {otp_type}. Please request a new OTP.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify OTP
+        success, message = otp_record.verify(otp_code)
+        
+        if not success:
+            return Response({
+                'success': False,
+                'message': message,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update user verification status
+        if otp_type.upper() == 'EMAIL':
+            user.is_email_verified = True
+            user.email_verified_at = timezone.now()
+        elif otp_type.upper() == 'PHONE':
+            user.is_phone_verified = True
+            user.phone_verified_at = timezone.now()
+        
+        # If both email and phone are verified, set user as verified
+        if user.is_email_verified and user.is_phone_verified:
+            user.is_verified = True
+        
+        user.save()
+        
+        return Response({
+            'success': True,
+            'message': f'{otp_type.capitalize()} verified successfully.',
+            'data': {
+                'is_email_verified': user.is_email_verified,
+                'is_phone_verified': user.is_phone_verified,
+                'is_fully_verified': user.is_email_verified and user.is_phone_verified,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class ResendRegistrationOTPView(APIView):
+    """
+    API endpoint for resending OTP during registration.
+    
+    POST /api/auth/resend-registration-otp/
+    
+    Request body:
+    {
+        "email": "john@example.com",
+        "otp_type": "EMAIL"  // or "PHONE"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        import random
+        email = request.data.get('email')
+        otp_type = request.data.get('otp_type')
+        
+        if not all([email, otp_type]):
+            return Response({
+                'success': False,
+                'message': 'Email and OTP type are required.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find user by email
+        try:
+            user = User.objects.get(email=email.lower())
+        except User.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'User not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Import OTP model
+        from kyc_verification.models import OTPVerification, OTPType
+        
+        # Check if already verified
+        if otp_type.upper() == 'EMAIL' and user.is_email_verified:
+            return Response({
+                'success': False,
+                'message': 'Email is already verified.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if otp_type.upper() == 'PHONE' and user.is_phone_verified:
+            return Response({
+                'success': False,
+                'message': 'Phone is already verified.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate new OTP
+        otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        
+        otp = OTPVerification.objects.create(
+            user=user,
+            otp_type=otp_type.upper(),
+            otp_code=otp_code,
+            expires_at=timezone.now() + timezone.timedelta(minutes=10),
+            ip_address=get_client_ip(request),
+            user_agent=get_user_agent(request)
+        )
+        
+        return Response({
+            'success': True,
+            'message': f'OTP sent to your {otp_type.lower()}.',
+            'data': {
+                # For testing only - remove in production
+                'test_otp': otp_code,
+                'expires_in_minutes': 10,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+# =============================================================================
+# USER ACTIVITY LOG ENDPOINTS
+# =============================================================================
+
+class UserActivityLogListView(APIView):
+    """
+    API endpoint to get user activity logs.
+    
+    SP/Developer can view all user logs.
+    Admin can view logs for users below their level.
+    Users can view their own logs.
+    
+    GET /api/auth/activity-logs/
+    GET /api/auth/activity-logs/?user_id=123
+    GET /api/auth/activity-logs/?activity_type=LOGIN
+    GET /api/auth/activity-logs/?start_date=2024-01-01&end_date=2024-12-31
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        from .models import UserActivityLog
+        from .serializers import UserActivityLogSerializer
+        
+        user_id = request.query_params.get('user_id')
+        activity_type = request.query_params.get('activity_type')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        limit = int(request.query_params.get('limit', 100))
+        
+        # Determine what logs to show
+        if user_id:
+            # Check permissions to view other user's logs
+            if request.user.user_role not in ['DEVELOPER', 'SUPER_ADMIN', 'ADMIN']:
+                # Regular users can only view their own logs
+                if str(request.user.id) != str(user_id):
+                    return Response({
+                        'success': False,
+                        'message': 'You can only view your own activity logs.',
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            logs = UserActivityLog.objects.filter(user_id=user_id)
+        elif request.user.user_role in ['DEVELOPER', 'SUPER_ADMIN']:
+            # SP/Developer can view all logs
+            logs = UserActivityLog.objects.all()
+        else:
+            # Others can only view their own logs
+            logs = UserActivityLog.objects.filter(user=request.user)
+        
+        # Apply filters
+        if activity_type:
+            logs = logs.filter(activity_type=activity_type.upper())
+        
+        if start_date:
+            logs = logs.filter(created_at__date__gte=start_date)
+        
+        if end_date:
+            logs = logs.filter(created_at__date__lte=end_date)
+        
+        logs = logs.order_by('-created_at')[:limit]
+        
+        serializer = UserActivityLogSerializer(logs, many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Activity logs retrieved successfully.',
+            'data': {
+                'logs': serializer.data,
+                'count': len(serializer.data),
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class MyActivityLogView(APIView):
+    """
+    API endpoint to get current user's activity logs.
+    
+    GET /api/auth/my-activity/
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        from .models import UserActivityLog
+        from .serializers import UserActivityLogSerializer
+        
+        activity_type = request.query_params.get('activity_type')
+        limit = int(request.query_params.get('limit', 50))
+        
+        logs = UserActivityLog.objects.filter(user=request.user)
+        
+        if activity_type:
+            logs = logs.filter(activity_type=activity_type.upper())
+        
+        logs = logs.order_by('-created_at')[:limit]
+        
+        serializer = UserActivityLogSerializer(logs, many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Your activity logs retrieved successfully.',
+            'data': {
+                'logs': serializer.data,
+                'count': len(serializer.data),
+            }
+        }, status=status.HTTP_200_OK)
+
+
+# =============================================================================
+# USER PROFILE WITH KYC STATUS AND ACCESS
+# =============================================================================
+
+class UserProfileWithAccessView(APIView):
+    """
+    API endpoint to get comprehensive user profile with:
+    - User details
+    - KYC status
+    - App/Feature access
+    - Role information
+    
+    GET /api/auth/profile-full/
+    
+    Can also update profile:
+    PATCH /api/auth/profile-full/
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Build profile data
+        profile_data = {
+            'id': user.id,
+            'user_code': user.user_code,
+            'email': user.email,
+            'username': user.username,
+            'first_name': user.first_name,
+            'middle_name': getattr(user, 'middle_name', None),
+            'last_name': user.last_name,
+            'full_name': user.full_name,
+            'phone_number': user.phone_number,
+            'user_role': user.user_role,
+            'is_active': user.is_active,
+            'is_verified': user.is_verified,
+            'is_email_verified': getattr(user, 'is_email_verified', False),
+            'is_phone_verified': getattr(user, 'is_phone_verified', False),
+            'created_at': user.created_at.isoformat() if user.created_at else None,
+            'updated_at': user.updated_at.isoformat() if user.updated_at else None,
+            'last_login': user.last_login.isoformat() if user.last_login else None,
+        }
+        
+        # Get KYC status
+        kyc_status = None
+        try:
+            from kyc_verification.models import KYCApplication
+            kyc_app = KYCApplication.objects.get(user=user, is_deleted=False)
+            kyc_status = {
+                'application_id': kyc_app.application_id,
+                'status': kyc_app.status,
+                'mega_step': kyc_app.mega_step,
+                'current_step': kyc_app.current_step,
+                'total_steps': kyc_app.total_steps,
+                'completion_percentage': kyc_app.completion_percentage,
+                'submitted_at': kyc_app.submitted_at.isoformat() if kyc_app.submitted_at else None,
+                'reviewed_at': kyc_app.reviewed_at.isoformat() if kyc_app.reviewed_at else None,
+                'approved_at': kyc_app.approved_at.isoformat() if kyc_app.approved_at else None,
+                'is_email_verified': kyc_app.is_email_verified,
+                'is_phone_verified': kyc_app.is_phone_verified,
+                'review_remarks': kyc_app.review_remarks,
+                'rejection_reason': kyc_app.rejection_reason,
+            }
+        except:
+            kyc_status = {
+                'status': 'NOT_STARTED',
+                'message': 'KYC not yet initiated'
+            }
+        
+        # Get app and feature access
+        app_access = []
+        feature_access = []
+        
+        try:
+            from rbac.models import UserRoleAssignment, RoleAppMapping, RoleFeatureMapping
+            
+            # Get user's active role assignments
+            role_assignments = UserRoleAssignment.objects.filter(
+                user=user,
+                is_active=True
+            ).select_related('role')
+            
+            for assignment in role_assignments:
+                role = assignment.role
+                
+                # Get app access
+                app_mappings = RoleAppMapping.objects.filter(
+                    role=role,
+                    is_active=True
+                ).select_related('app')
+                
+                for mapping in app_mappings:
+                    app_data = {
+                        'app_id': mapping.app.id,
+                        'app_code': mapping.app.code,
+                        'app_name': mapping.app.name,
+                        'can_view': mapping.can_view,
+                        'can_create': mapping.can_create,
+                        'can_update': mapping.can_update,
+                        'can_delete': mapping.can_delete,
+                    }
+                    if app_data not in app_access:
+                        app_access.append(app_data)
+                
+                # Get feature access
+                feature_mappings = RoleFeatureMapping.objects.filter(
+                    role=role,
+                    is_active=True
+                ).select_related('feature', 'feature__app')
+                
+                for mapping in feature_mappings:
+                    feature_data = {
+                        'feature_id': mapping.feature.id,
+                        'feature_code': mapping.feature.code,
+                        'feature_name': mapping.feature.name,
+                        'app_code': mapping.feature.app.code,
+                        'can_execute': mapping.can_execute,
+                        'can_view': mapping.can_view,
+                        'can_edit': mapping.can_edit,
+                    }
+                    if feature_data not in feature_access:
+                        feature_access.append(feature_data)
+        except:
+            pass
+        
+        # Add to profile
+        profile_data['kyc_status'] = kyc_status
+        profile_data['app_access'] = app_access
+        profile_data['feature_access'] = feature_access
+        
+        return Response({
+            'success': True,
+            'message': 'Profile retrieved successfully.',
+            'data': profile_data
+        }, status=status.HTTP_200_OK)
+    
+    def patch(self, request):
+        """Update user profile"""
+        user = request.user
+        
+        # Fields that can be updated
+        allowed_fields = ['first_name', 'middle_name', 'last_name', 'username']
+        
+        updated_fields = []
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(user, field, request.data[field])
+                updated_fields.append(field)
+        
+        if updated_fields:
+            user.save(update_fields=updated_fields + ['updated_at'])
+            
+            # Log activity
+            from .models import UserActivityLog
+            UserActivityLog.log_activity(
+                user=user,
+                activity_type=UserActivityLog.ActivityType.PROFILE_UPDATE,
+                action='Profile updated',
+                description=f'Updated fields: {", ".join(updated_fields)}',
+                entity_type='User',
+                entity_id=user.id,
+                request=request
+            )
+        
+        return Response({
+            'success': True,
+            'message': 'Profile updated successfully.',
+            'data': {
+                'updated_fields': updated_fields,
+                'user': UserSerializer(user).data,
+            }
+        }, status=status.HTTP_200_OK)

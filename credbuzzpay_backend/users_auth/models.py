@@ -88,8 +88,15 @@ class User(models.Model):
     
     # User profile fields
     first_name = models.CharField(max_length=100, blank=True, null=True)
+    middle_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
-    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True, unique=True)
+    
+    # Verification flags for email and phone
+    is_email_verified = models.BooleanField(default=False)
+    is_phone_verified = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
     
     # Direct role reference (for quick access, synced with UserRoleAssignment)
     user_role = models.CharField(
@@ -150,10 +157,12 @@ class User(models.Model):
     
     @property
     def full_name(self):
-        """Return full name of user"""
-        if self.first_name and self.last_name:
-            return f"{self.first_name} {self.last_name}"
-        return self.first_name or self.last_name or self.username
+        """Return full name of user including middle name"""
+        parts = [self.first_name, self.middle_name, self.last_name]
+        name_parts = [p for p in parts if p]
+        if name_parts:
+            return " ".join(name_parts)
+        return self.username
     
     @property
     def is_authenticated(self):
@@ -470,3 +479,143 @@ class LoginAttempt(models.Model):
             last_attempt_at__lt=threshold,
             is_blocked=False
         ).delete()
+
+
+class UserActivityLog(models.Model):
+    """
+    Model to track user activity logs.
+    
+    Tracks:
+    - Login/Logout events
+    - Page visits
+    - Actions performed (CRUD operations)
+    - API calls
+    - Security events
+    """
+    
+    class ActivityType(models.TextChoices):
+        LOGIN = 'LOGIN', 'Login'
+        LOGOUT = 'LOGOUT', 'Logout'
+        LOGIN_FAILED = 'LOGIN_FAILED', 'Login Failed'
+        REGISTER = 'REGISTER', 'Registration'
+        PASSWORD_CHANGE = 'PASSWORD_CHANGE', 'Password Change'
+        PASSWORD_RESET = 'PASSWORD_RESET', 'Password Reset'
+        PROFILE_UPDATE = 'PROFILE_UPDATE', 'Profile Update'
+        KYC_SUBMIT = 'KYC_SUBMIT', 'KYC Submission'
+        KYC_APPROVED = 'KYC_APPROVED', 'KYC Approved'
+        KYC_REJECTED = 'KYC_REJECTED', 'KYC Rejected'
+        ACCESS_ASSIGNED = 'ACCESS_ASSIGNED', 'Access Assigned'
+        ACCESS_REVOKED = 'ACCESS_REVOKED', 'Access Revoked'
+        ROLE_CHANGED = 'ROLE_CHANGED', 'Role Changed'
+        API_CALL = 'API_CALL', 'API Call'
+        PAGE_VISIT = 'PAGE_VISIT', 'Page Visit'
+        CREATE = 'CREATE', 'Create Action'
+        UPDATE = 'UPDATE', 'Update Action'
+        DELETE = 'DELETE', 'Delete Action'
+        VIEW = 'VIEW', 'View Action'
+        EXPORT = 'EXPORT', 'Export Action'
+        OTHER = 'OTHER', 'Other'
+    
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='activity_logs'
+    )
+    
+    activity_type = models.CharField(
+        max_length=30,
+        choices=ActivityType.choices,
+        default=ActivityType.OTHER
+    )
+    
+    # Activity details
+    action = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    entity_type = models.CharField(max_length=100, blank=True, help_text="Type of entity affected (e.g., User, KYC, Role)")
+    entity_id = models.CharField(max_length=100, blank=True, help_text="ID of entity affected")
+    
+    # Additional data (JSON)
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    # Request details
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    request_method = models.CharField(max_length=10, blank=True)
+    request_path = models.CharField(max_length=500, blank=True)
+    
+    # Status
+    is_success = models.BooleanField(default=True)
+    error_message = models.TextField(blank=True)
+    
+    # Timestamp
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'users_auth_activity_log'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['activity_type', '-created_at']),
+            models.Index(fields=['entity_type', 'entity_id']),
+            models.Index(fields=['-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.activity_type} - {self.action}"
+    
+    @classmethod
+    def log_activity(cls, user, activity_type, action, description='', entity_type='', entity_id='',
+                     metadata=None, request=None, is_success=True, error_message=''):
+        """
+        Helper method to create an activity log entry.
+        
+        Usage:
+            UserActivityLog.log_activity(
+                user=request.user,
+                activity_type=UserActivityLog.ActivityType.LOGIN,
+                action='User logged in',
+                request=request
+            )
+        """
+        log_data = {
+            'user': user,
+            'activity_type': activity_type,
+            'action': action,
+            'description': description,
+            'entity_type': entity_type,
+            'entity_id': str(entity_id) if entity_id else '',
+            'metadata': metadata or {},
+            'is_success': is_success,
+            'error_message': error_message,
+        }
+        
+        if request:
+            log_data['ip_address'] = request.META.get('REMOTE_ADDR')
+            log_data['user_agent'] = request.META.get('HTTP_USER_AGENT', '')[:1000]
+            log_data['request_method'] = request.method
+            log_data['request_path'] = request.path[:500]
+        
+        return cls.objects.create(**log_data)
+    
+    @classmethod
+    def get_user_activities(cls, user, activity_types=None, start_date=None, end_date=None, limit=100):
+        """Get activity logs for a specific user."""
+        logs = cls.objects.filter(user=user)
+        
+        if activity_types:
+            logs = logs.filter(activity_type__in=activity_types)
+        
+        if start_date:
+            logs = logs.filter(created_at__gte=start_date)
+        
+        if end_date:
+            logs = logs.filter(created_at__lte=end_date)
+        
+        return logs[:limit]
+    
+    @classmethod
+    def cleanup_old_logs(cls, days=90):
+        """Clean up old activity logs."""
+        threshold = timezone.now() - timedelta(days=days)
+        return cls.objects.filter(created_at__lt=threshold).delete()

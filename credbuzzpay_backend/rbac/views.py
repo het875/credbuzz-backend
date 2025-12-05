@@ -1086,3 +1086,484 @@ class InitializeDefaultRolesView(APIView):
             {'created_roles': created_roles},
             f"Initialized {len(created_roles)} default roles" if created_roles else "All default roles already exist"
         )
+
+
+# =============================================================================
+# Access Management Views (For SP/Developer to assign access to Admin/Client)
+# =============================================================================
+
+class UserAccessOverviewView(APIView):
+    """
+    Get complete access overview for a user.
+    Includes: apps, features, role assignments.
+    
+    GET /api/rbac/users/<user_id>/access/
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, user_id):
+        """Get complete access overview for a user"""
+        from users_auth.models import User
+        
+        # Only SP/Developer/Admin can view user access
+        if not has_role_level(request.user, RoleLevel.ADMIN):
+            return error_response(
+                "You don't have permission to view user access",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            user = User.objects.get(id=user_id, is_deleted=False)
+        except User.DoesNotExist:
+            return error_response(
+                "User not found",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get user's role assignments
+        role_assignments = UserRoleAssignment.objects.filter(
+            user=user,
+            is_active=True
+        ).select_related('role')
+        
+        # Get all accessible apps and features based on roles
+        accessible_apps = []
+        accessible_features = []
+        
+        for assignment in role_assignments:
+            role = assignment.role
+            
+            # Get role's app mappings
+            app_mappings = RoleAppMapping.objects.filter(
+                role=role,
+                is_active=True
+            ).select_related('app')
+            
+            for mapping in app_mappings:
+                app_data = {
+                    'app_id': mapping.app.id,
+                    'app_code': mapping.app.code,
+                    'app_name': mapping.app.name,
+                    'can_view': mapping.can_view,
+                    'can_create': mapping.can_create,
+                    'can_update': mapping.can_update,
+                    'can_delete': mapping.can_delete,
+                    'assigned_via_role': role.name,
+                }
+                if app_data not in accessible_apps:
+                    accessible_apps.append(app_data)
+            
+            # Get role's feature mappings
+            feature_mappings = RoleFeatureMapping.objects.filter(
+                role=role,
+                is_active=True
+            ).select_related('feature', 'feature__app')
+            
+            for mapping in feature_mappings:
+                feature_data = {
+                    'feature_id': mapping.feature.id,
+                    'feature_code': mapping.feature.code,
+                    'feature_name': mapping.feature.name,
+                    'app_code': mapping.feature.app.code,
+                    'app_name': mapping.feature.app.name,
+                    'can_execute': mapping.can_execute,
+                    'can_view': mapping.can_view,
+                    'can_edit': mapping.can_edit,
+                    'assigned_via_role': role.name,
+                }
+                if feature_data not in accessible_features:
+                    accessible_features.append(feature_data)
+        
+        # Get KYC status if exists
+        kyc_status = None
+        try:
+            from kyc_verification.models import KYCApplication
+            kyc_app = KYCApplication.objects.get(user=user, is_deleted=False)
+            kyc_status = {
+                'application_id': kyc_app.application_id,
+                'status': kyc_app.status,
+                'completion_percentage': kyc_app.completion_percentage,
+                'submitted_at': kyc_app.submitted_at.isoformat() if kyc_app.submitted_at else None,
+                'approved_at': kyc_app.approved_at.isoformat() if kyc_app.approved_at else None,
+            }
+        except:
+            pass
+        
+        return success_response({
+            'user': {
+                'id': user.id,
+                'user_code': user.user_code,
+                'email': user.email,
+                'full_name': user.full_name,
+                'user_role': user.user_role,
+                'is_verified': user.is_verified,
+                'is_email_verified': getattr(user, 'is_email_verified', False),
+                'is_phone_verified': getattr(user, 'is_phone_verified', False),
+            },
+            'roles': [{
+                'role_id': a.role.id,
+                'role_code': a.role.code,
+                'role_name': a.role.name,
+                'role_level': a.role.level,
+                'assigned_at': a.assigned_at.isoformat() if a.assigned_at else None,
+            } for a in role_assignments],
+            'apps': accessible_apps,
+            'features': accessible_features,
+            'kyc_status': kyc_status,
+        })
+
+
+class AssignAccessToUserView(APIView):
+    """
+    Assign app/feature access to a user by role.
+    SP can assign to Admin/Client, Admin can assign to Client.
+    
+    POST /api/rbac/users/<user_id>/assign-access/
+    
+    Request body:
+    {
+        "role_code": "ADMIN",  // Role to assign
+        "app_codes": ["USER_MGMT", "REPORTS"],  // Optional: specific apps
+        "feature_codes": ["CREATE_USER", "VIEW_REPORT"],  // Optional: specific features
+    }
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, user_id):
+        """Assign access to a user"""
+        from users_auth.models import User
+        
+        # Only SP/Developer/Admin can assign access
+        if not has_role_level(request.user, RoleLevel.ADMIN):
+            return error_response(
+                "You don't have permission to assign access",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            target_user = User.objects.get(id=user_id, is_deleted=False)
+        except User.DoesNotExist:
+            return error_response(
+                "User not found",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        role_code = request.data.get('role_code')
+        app_codes = request.data.get('app_codes', [])
+        feature_codes = request.data.get('feature_codes', [])
+        
+        if not role_code:
+            return error_response(
+                "Role code is required",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get the role
+        try:
+            role = UserRole.objects.get(code=role_code, is_active=True)
+        except UserRole.DoesNotExist:
+            return error_response(
+                f"Role '{role_code}' not found",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if requesting user can assign this role (hierarchy check)
+        user_level = get_user_level(request.user)
+        if user_level >= role.level:
+            return error_response(
+                f"You cannot assign a role equal to or higher than your own",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        with transaction.atomic():
+            # Create or update role assignment
+            assignment, created = UserRoleAssignment.objects.update_or_create(
+                user=target_user,
+                role=role,
+                defaults={
+                    'is_active': True,
+                    'assigned_by': request.user,
+                }
+            )
+            
+            # Update user's primary role if it's higher
+            if role.level < get_user_level(target_user):
+                target_user.user_role = role.code
+                target_user.save(update_fields=['user_role'])
+            
+            # If specific apps are provided, create app mappings
+            apps_assigned = []
+            if app_codes:
+                for app_code in app_codes:
+                    try:
+                        app = App.objects.get(code=app_code, is_active=True)
+                        mapping, _ = RoleAppMapping.objects.update_or_create(
+                            role=role,
+                            app=app,
+                            defaults={
+                                'is_active': True,
+                                'can_view': True,
+                                'can_create': True,
+                                'can_update': True,
+                                'can_delete': True,
+                                'assigned_by': request.user,
+                            }
+                        )
+                        apps_assigned.append(app.name)
+                    except App.DoesNotExist:
+                        pass
+            
+            # If specific features are provided, create feature mappings
+            features_assigned = []
+            if feature_codes:
+                for feature_code in feature_codes:
+                    try:
+                        feature = Feature.objects.get(code=feature_code, is_active=True)
+                        mapping, _ = RoleFeatureMapping.objects.update_or_create(
+                            role=role,
+                            feature=feature,
+                            defaults={
+                                'is_active': True,
+                                'can_execute': True,
+                                'can_view': True,
+                                'can_edit': True,
+                                'assigned_by': request.user,
+                            }
+                        )
+                        features_assigned.append(feature.name)
+                    except Feature.DoesNotExist:
+                        pass
+            
+            # Log audit
+            log_audit(
+                action='ASSIGN_ACCESS',
+                entity_type='USER',
+                entity_id=target_user.id,
+                entity_uuid=None,
+                description=f"Assigned {role.name} role to user {target_user.email}",
+                user=request.user,
+                request=request,
+                new_values={
+                    'role': role.code,
+                    'apps': apps_assigned,
+                    'features': features_assigned,
+                }
+            )
+        
+        return success_response({
+            'user_id': target_user.id,
+            'role_assigned': role.name,
+            'apps_assigned': apps_assigned,
+            'features_assigned': features_assigned,
+        }, "Access assigned successfully")
+
+
+class RevokeAccessFromUserView(APIView):
+    """
+    Revoke app/feature access from a user.
+    
+    POST /api/rbac/users/<user_id>/revoke-access/
+    
+    Request body:
+    {
+        "role_code": "ADMIN",  // Optional: revoke specific role
+        "app_codes": ["USER_MGMT"],  // Optional: revoke specific apps
+        "feature_codes": ["CREATE_USER"],  // Optional: revoke specific features
+        "revoke_all": false  // Optional: revoke all access
+    }
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, user_id):
+        """Revoke access from a user"""
+        from users_auth.models import User
+        
+        # Only SP/Developer/Admin can revoke access
+        if not has_role_level(request.user, RoleLevel.ADMIN):
+            return error_response(
+                "You don't have permission to revoke access",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            target_user = User.objects.get(id=user_id, is_deleted=False)
+        except User.DoesNotExist:
+            return error_response(
+                "User not found",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        role_code = request.data.get('role_code')
+        app_codes = request.data.get('app_codes', [])
+        feature_codes = request.data.get('feature_codes', [])
+        revoke_all = request.data.get('revoke_all', False)
+        
+        revoked_items = {
+            'roles': [],
+            'apps': [],
+            'features': [],
+        }
+        
+        with transaction.atomic():
+            if revoke_all:
+                # Revoke all role assignments
+                assignments = UserRoleAssignment.objects.filter(
+                    user=target_user,
+                    is_active=True
+                )
+                for assignment in assignments:
+                    revoked_items['roles'].append(assignment.role.name)
+                assignments.update(is_active=False)
+                
+                # Reset user to END_USER
+                target_user.user_role = 'END_USER'
+                target_user.save(update_fields=['user_role'])
+            
+            elif role_code:
+                # Revoke specific role
+                try:
+                    role = UserRole.objects.get(code=role_code)
+                    assignment = UserRoleAssignment.objects.filter(
+                        user=target_user,
+                        role=role,
+                        is_active=True
+                    ).first()
+                    if assignment:
+                        assignment.is_active = False
+                        assignment.save()
+                        revoked_items['roles'].append(role.name)
+                        
+                        # Recalculate user's primary role
+                        remaining = UserRoleAssignment.objects.filter(
+                            user=target_user,
+                            is_active=True
+                        ).select_related('role').order_by('role__level').first()
+                        
+                        if remaining:
+                            target_user.user_role = remaining.role.code
+                        else:
+                            target_user.user_role = 'END_USER'
+                        target_user.save(update_fields=['user_role'])
+                except UserRole.DoesNotExist:
+                    pass
+            
+            # Revoke specific apps (from role mappings)
+            if app_codes:
+                for app_code in app_codes:
+                    try:
+                        app = App.objects.get(code=app_code)
+                        # Find user's roles and remove app access
+                        user_roles = UserRoleAssignment.objects.filter(
+                            user=target_user,
+                            is_active=True
+                        ).values_list('role_id', flat=True)
+                        
+                        mappings = RoleAppMapping.objects.filter(
+                            role_id__in=user_roles,
+                            app=app,
+                            is_active=True
+                        )
+                        for mapping in mappings:
+                            revoked_items['apps'].append(app.name)
+                        mappings.update(is_active=False)
+                    except App.DoesNotExist:
+                        pass
+            
+            # Revoke specific features
+            if feature_codes:
+                for feature_code in feature_codes:
+                    try:
+                        feature = Feature.objects.get(code=feature_code)
+                        user_roles = UserRoleAssignment.objects.filter(
+                            user=target_user,
+                            is_active=True
+                        ).values_list('role_id', flat=True)
+                        
+                        mappings = RoleFeatureMapping.objects.filter(
+                            role_id__in=user_roles,
+                            feature=feature,
+                            is_active=True
+                        )
+                        for mapping in mappings:
+                            revoked_items['features'].append(feature.name)
+                        mappings.update(is_active=False)
+                    except Feature.DoesNotExist:
+                        pass
+            
+            # Log audit
+            log_audit(
+                action='REVOKE_ACCESS',
+                entity_type='USER',
+                entity_id=target_user.id,
+                entity_uuid=None,
+                description=f"Revoked access from user {target_user.email}",
+                user=request.user,
+                request=request,
+                old_values=revoked_items,
+            )
+        
+        return success_response({
+            'user_id': target_user.id,
+            'revoked': revoked_items,
+        }, "Access revoked successfully")
+
+
+class AllAppsAndFeaturesView(APIView):
+    """
+    Get all apps and features available in the system.
+    Used by SP/Developer to see what can be assigned.
+    
+    GET /api/rbac/all-access-items/
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get all apps and features"""
+        # Only SP/Developer/Admin can view all access items
+        if not has_role_level(request.user, RoleLevel.ADMIN):
+            return error_response(
+                "You don't have permission to view access items",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        apps = App.objects.filter(is_active=True).prefetch_related('features')
+        
+        result = []
+        for app in apps:
+            features = app.features.filter(is_active=True)
+            result.append({
+                'app_id': app.id,
+                'app_code': app.code,
+                'app_name': app.name,
+                'app_description': app.description,
+                'app_icon': app.icon,
+                'features': [{
+                    'feature_id': f.id,
+                    'feature_code': f.code,
+                    'feature_name': f.name,
+                    'feature_description': f.description,
+                    'feature_type': f.feature_type,
+                } for f in features]
+            })
+        
+        # Get all roles
+        roles = UserRole.objects.filter(is_active=True).order_by('level')
+        roles_data = [{
+            'role_id': r.id,
+            'role_code': r.code,
+            'role_name': r.name,
+            'role_level': r.level,
+            'is_system_role': r.is_system_role,
+        } for r in roles]
+        
+        return success_response({
+            'apps': result,
+            'roles': roles_data,
+            'total_apps': len(result),
+            'total_features': sum(len(app['features']) for app in result),
+            'total_roles': len(roles_data),
+        })
