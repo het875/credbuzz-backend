@@ -16,9 +16,24 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+# Import OTP views for auth endpoints
+from kyc_verification.views import OTPSendView, OTPVerifyView, OTPResendView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('users_auth.urls')),
     path('api/rbac/', include('rbac.urls', namespace='rbac')),
+    path('api/kyc/', include('kyc_verification.urls', namespace='kyc_verification')),
+    
+    # OTP endpoints under auth
+    path('api/auth/send-otp/', OTPSendView.as_view(), name='send-otp'),
+    path('api/auth/verify-otp/', OTPVerifyView.as_view(), name='verify-otp'),
+    path('api/auth/resend-otp/', OTPResendView.as_view(), name='resend-otp'),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

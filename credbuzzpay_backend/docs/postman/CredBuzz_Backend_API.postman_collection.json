@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "credbuzz-rbac-collection",
 		"name": "CredBuzz Backend API",
-		"description": "Complete API collection for CredBuzz Backend including User Authentication and RBAC (Role-Based Access Control) endpoints.\n\n## Dynamic Login\nLogin uses a single `identifier` field that auto-detects:\n- **Email**: Contains @ (e.g., user@example.com)\n- **Phone**: Starts with + (e.g., +1234567890)\n- **User Code**: 6 alphanumeric chars (e.g., CGX0R0)\n- **Username**: Default fallback\n\n## Login Security\n- Progressive lockout: 5 attempts → 2min → 5min → 10min → 30min → 60min → blocked\n- Session inactivity timeout: 30 minutes (like bank apps)\n- JWT includes: user_code, user_role, app_access, feature_access\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## User Code\nEvery user has a unique 6-character alphanumeric code (e.g., ABC123) auto-generated at creation.",
+		"description": "Complete API collection for CredBuzz Backend including User Authentication, RBAC (Role-Based Access Control), and KYC Verification endpoints.\n\n## Dynamic Login\nLogin uses a single `identifier` field that auto-detects:\n- **Email**: Contains @ (e.g., user@example.com)\n- **Phone**: Starts with + (e.g., +1234567890)\n- **User Code**: 6 alphanumeric chars (e.g., CGX0R0)\n- **Username**: Default fallback\n\n## Login Security\n- Progressive lockout: 5 attempts → 2min → 5min → 10min → 30min → 60min → blocked\n- Session inactivity timeout: 30 minutes (like bank apps)\n- JWT includes: user_code, user_role, app_access, feature_access\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## KYC Flow\n1. Start KYC → 2. OTP Verification → 3. Identity Proof (Aadhaar/PAN) → 4. Business Details → 5. Verification Images → 6. Bank Details → 7. Submit for Review\n\n## KYC Security\n- Aadhaar, PAN, Bank Account numbers are encrypted\n- Masked in responses (XXXX-XXXX-9012)\n- Max file size: 5MB",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -33,6 +33,11 @@
 		},
 		{
 			"key": "superadmin_access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "kyc_application_id",
 			"value": "",
 			"type": "string"
 		}
@@ -1498,6 +1503,706 @@
 				}
 			],
 			"description": "Audit log endpoints for tracking changes."
+		},
+		{
+			"name": "📋 KYC Verification",
+			"item": [
+				{
+					"name": "OTP",
+					"item": [
+						{
+							"name": "Send Email OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_type\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/send-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "send-otp", ""]
+								},
+								"description": "Send OTP to user's email for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Send Phone OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_type\": \"PHONE\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/send-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "send-otp", ""]
+								},
+								"description": "Send OTP to user's phone for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Verify OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_code\": \"123456\",\n    \"otp_type\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verify-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verify-otp", ""]
+								},
+								"description": "Verify the OTP received via email or phone."
+							},
+							"response": []
+						},
+						{
+							"name": "Resend OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_type\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/resend-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "resend-otp", ""]
+								},
+								"description": "Resend OTP (invalidates previous OTPs)."
+							},
+							"response": []
+						}
+					],
+					"description": "OTP verification endpoints for email and phone."
+				},
+				{
+					"name": "KYC Status & Start",
+					"item": [
+						{
+							"name": "Get KYC Status",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.has_kyc && jsonData.kyc) {",
+											"    pm.collectionVariables.set('kyc_application_id', jsonData.kyc.application_id);",
+											"    console.log('KYC Application ID:', jsonData.kyc.application_id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/status/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "status", ""]
+								},
+								"description": "Get current user's KYC status including progress, identity proof, business details, bank details, and all step statuses."
+							},
+							"response": []
+						},
+						{
+							"name": "Start KYC Application",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.success && jsonData.kyc) {",
+											"    pm.collectionVariables.set('kyc_application_id', jsonData.kyc.application_id);",
+											"    console.log('KYC Started! Application ID:', jsonData.kyc.application_id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/start/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "start", ""]
+								},
+								"description": "Start a new KYC application. Creates all related records (identity proof, business details, bank details, progress tracker)."
+							},
+							"response": []
+						}
+					],
+					"description": "KYC application status and initialization."
+				},
+				{
+					"name": "Identity Proof",
+					"item": [
+						{
+							"name": "Submit Aadhaar Details",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"aadhaar_number\": \"123456789012\",\n    \"aadhaar_name\": \"John Doe\",\n    \"aadhaar_dob\": \"1990-01-15\",\n    \"aadhaar_address\": \"123 Main Street, City, State 123456\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/aadhaar/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "aadhaar", ""]
+								},
+								"description": "Submit Aadhaar details. Aadhaar number is encrypted and masked in responses (XXXX-XXXX-9012)."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Aadhaar Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/aadhaar/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "aadhaar", ""]
+								},
+								"description": "Get current Aadhaar details with masked number."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Aadhaar Photos",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "aadhaar_front",
+											"type": "file",
+											"description": "Aadhaar front image (JPG/PNG/PDF, max 5MB)"
+										},
+										{
+											"key": "aadhaar_back",
+											"type": "file",
+											"description": "Aadhaar back image (JPG/PNG/PDF, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/aadhaar/upload/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "aadhaar", "upload", ""]
+								},
+								"description": "Upload Aadhaar front and back images. Supports JPG, PNG, PDF up to 5MB."
+							},
+							"response": []
+						},
+						{
+							"name": "Submit PAN Details",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"pan_number\": \"ABCDE1234F\",\n    \"pan_name\": \"John Doe\",\n    \"pan_dob\": \"1990-01-15\",\n    \"pan_father_name\": \"Father Name\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/pan/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "pan", ""]
+								},
+								"description": "Submit PAN details. PAN number is encrypted and masked in responses (ABCXX1234X)."
+							},
+							"response": []
+						},
+						{
+							"name": "Get PAN Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/pan/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "pan", ""]
+								},
+								"description": "Get current PAN details with masked number."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload PAN Photo",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "pan_image",
+											"type": "file",
+											"description": "PAN card image (JPG/PNG/PDF, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/pan/upload/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "pan", "upload", ""]
+								},
+								"description": "Upload PAN card image. Supports JPG, PNG, PDF up to 5MB."
+							},
+							"response": []
+						}
+					],
+					"description": "Identity proof endpoints for Aadhaar and PAN verification."
+				},
+				{
+					"name": "Business Details",
+					"item": [
+						{
+							"name": "Submit Business Details",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"business_name\": \"CredBuzz Pvt Ltd\",\n    \"business_type\": \"Private Limited\",\n    \"business_phone\": \"9876543210\",\n    \"business_email\": \"business@company.com\",\n    \"address_line_1\": \"123 Business Park\",\n    \"address_line_2\": \"Floor 5\",\n    \"address_line_3\": \"\",\n    \"landmark\": \"Near Metro Station\",\n    \"city\": \"Mumbai\",\n    \"district\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400001\",\n    \"country\": \"India\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/business/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "business", ""]
+								},
+								"description": "Submit or update business details including address."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Business Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/business/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "business", ""]
+								},
+								"description": "Get current business details."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Business Details",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"business_name\": \"CredBuzz Pvt Ltd\",\n    \"business_type\": \"Private Limited\",\n    \"business_phone\": \"9876543210\",\n    \"business_email\": \"updated@company.com\",\n    \"address_line_1\": \"456 New Address\",\n    \"city\": \"Mumbai\",\n    \"district\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400002\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/business/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "business", ""]
+								},
+								"description": "Update business details."
+							},
+							"response": []
+						}
+					],
+					"description": "Business details and address endpoints."
+				},
+				{
+					"name": "Verification Images",
+					"item": [
+						{
+							"name": "Upload Verification Images",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "selfie",
+											"type": "file",
+											"description": "Selfie photo (JPG/PNG, max 5MB)"
+										},
+										{
+											"key": "office_sitting_photo",
+											"type": "file",
+											"description": "Photo sitting in office (JPG/PNG, max 5MB)"
+										},
+										{
+											"key": "office_door_photo",
+											"type": "file",
+											"description": "Photo at office door with name board (JPG/PNG, max 5MB)"
+										},
+										{
+											"key": "address_proof",
+											"type": "file",
+											"description": "Address proof document (JPG/PNG/PDF, max 5MB)"
+										},
+										{
+											"key": "address_proof_type",
+											"value": "UTILITY_BILL",
+											"type": "text",
+											"description": "Type: UTILITY_BILL, BANK_STATEMENT, RENT_AGREEMENT, etc."
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verification-images/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification-images", ""]
+								},
+								"description": "Upload verification images including selfie, office photos, and address proof."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Verification Images",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/verification-images/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification-images", ""]
+								},
+								"description": "Get current verification images status and URLs."
+							},
+							"response": []
+						}
+					],
+					"description": "Verification images upload (selfie, office photos, address proof)."
+				},
+				{
+					"name": "Bank Details",
+					"item": [
+						{
+							"name": "Submit Bank Details (JSON)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"account_holder_name\": \"John Doe\",\n    \"account_number\": \"12345678901234\",\n    \"confirm_account_number\": \"12345678901234\",\n    \"ifsc_code\": \"SBIN0001234\",\n    \"account_type\": \"SAVINGS\",\n    \"bank_name\": \"State Bank of India\",\n    \"branch_name\": \"Main Branch\",\n    \"branch_address\": \"123 Bank Street\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/bank/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "bank", ""]
+								},
+								"description": "Submit bank details. Account number is encrypted and masked in responses (XXXXXXXX1234)."
+							},
+							"response": []
+						},
+						{
+							"name": "Submit Bank Details (with Document)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "account_holder_name",
+											"value": "John Doe",
+											"type": "text"
+										},
+										{
+											"key": "account_number",
+											"value": "12345678901234",
+											"type": "text"
+										},
+										{
+											"key": "confirm_account_number",
+											"value": "12345678901234",
+											"type": "text"
+										},
+										{
+											"key": "ifsc_code",
+											"value": "SBIN0001234",
+											"type": "text"
+										},
+										{
+											"key": "account_type",
+											"value": "SAVINGS",
+											"type": "text",
+											"description": "SAVINGS or CURRENT"
+										},
+										{
+											"key": "bank_name",
+											"value": "State Bank of India",
+											"type": "text"
+										},
+										{
+											"key": "branch_name",
+											"value": "Main Branch",
+											"type": "text"
+										},
+										{
+											"key": "bank_document",
+											"type": "file",
+											"description": "Cancelled cheque or passbook (JPG/PNG/PDF, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/bank/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "bank", ""]
+								},
+								"description": "Submit bank details with cancelled cheque or passbook document."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Bank Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/bank/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "bank", ""]
+								},
+								"description": "Get current bank details with masked account number."
+							},
+							"response": []
+						}
+					],
+					"description": "Bank details endpoints with encryption and masking."
+				},
+				{
+					"name": "Submission",
+					"item": [
+						{
+							"name": "Submit KYC for Review",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/submit/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "submit", ""]
+								},
+								"description": "Submit completed KYC application for admin review. All required steps must be completed."
+							},
+							"response": []
+						}
+					],
+					"description": "KYC submission for review."
+				},
+				{
+					"name": "Admin",
+					"item": [
+						{
+							"name": "List All Applications",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", ""]
+								},
+								"description": "List all KYC applications. Requires DEVELOPER, SUPER_ADMIN, or SUPPORT role."
+							},
+							"response": []
+						},
+						{
+							"name": "List Applications (Filtered)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/?status=SUBMITTED&page=1&page_size=20",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", ""],
+									"query": [
+										{
+											"key": "status",
+											"value": "SUBMITTED",
+											"description": "Filter: NOT_STARTED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "20"
+										}
+									]
+								},
+								"description": "List KYC applications with filters."
+							},
+							"response": []
+						},
+						{
+							"name": "Search Applications",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/?search=user@example.com",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", ""],
+									"query": [
+										{
+											"key": "search",
+											"value": "user@example.com",
+											"description": "Search by email, user_code, or application_id"
+										}
+									]
+								},
+								"description": "Search KYC applications by email, user code, or application ID."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Application Detail",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", ""]
+								},
+								"description": "Get detailed view of a KYC application including all proofs, documents, and audit logs."
+							},
+							"response": []
+						},
+						{
+							"name": "Start Review",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/review/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", "review", ""]
+								},
+								"description": "Mark application as under review. Changes status from SUBMITTED to UNDER_REVIEW."
+							},
+							"response": []
+						},
+						{
+							"name": "Approve Application",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"remarks\": \"All documents verified successfully.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/approve/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", "approve", ""]
+								},
+								"description": "Approve KYC application. Optional remarks can be added."
+							},
+							"response": []
+						},
+						{
+							"name": "Reject Application",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"rejection_reason\": \"Aadhaar image is blurry. Please upload a clearer image.\",\n    \"remarks\": \"Document quality insufficient for verification.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/reject/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", "reject", ""]
+								},
+								"description": "Reject KYC application. Rejection reason is required and shown to the user."
+							},
+							"response": []
+						}
+					],
+					"description": "Admin endpoints for reviewing and managing KYC applications. Requires admin role (DEVELOPER, SUPER_ADMIN, SUPPORT)."
+				}
+			],
+			"description": "KYC (Know Your Customer) verification endpoints for user onboarding.\n\n## KYC Flow\n1. **Start KYC** - Initialize application\n2. **OTP Verification** - Verify email/phone (optional)\n3. **Identity Proof** - Submit Aadhaar and PAN details with photos\n4. **Business Details** - Submit business information and address\n5. **Verification Images** - Upload selfie, office photos, address proof\n6. **Bank Details** - Submit bank account information\n7. **Submit** - Submit for admin review\n\n## Status Flow\n```\nNOT_STARTED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED/REJECTED\n```\n\n## Security\n- Aadhaar, PAN, Account numbers are encrypted\n- Responses show masked values (XXXX-XXXX-9012)\n- Max file size: 5MB\n- Allowed formats: JPG, PNG, PDF"
 		}
 	]
 }
+
