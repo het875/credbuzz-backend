@@ -9,7 +9,7 @@ cffi==1.17.1
 charset-normalizer==3.4.2
 click==8.0.4
 colorama==0.4.6
-cryptography==43.0.4  # Changed to version compatible with Python 3.9.0
+cryptography==43.0.1  # Changed to version compatible with Python 3.9.0
 Django==4.2.20
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
