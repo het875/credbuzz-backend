@@ -1,16 +1,8 @@
 {
-    "version": 2,
-    "builds": [
+    "rewrites": [
         {
-            "src": "credbuzzpay_backend/wsgi.py",
-            "use": "@vercel/python",
-            "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
-        }
-    ],
-    "routes": [
-        {
-            "src": "/(.*)",
-            "dest": "credbuzzpay_backend/wsgi.py"
+            "source": "/(.*)",
+            "destination": "credbuzzpay_backend/wsgi.py"
         }
     ]
 }
