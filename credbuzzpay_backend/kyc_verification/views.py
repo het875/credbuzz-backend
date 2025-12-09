@@ -408,6 +408,7 @@ class AadhaarDetailsView(APIView):
         if not hasattr(user, 'kyc_application'):
             return Response({
                 'success': False,
+                'error': 'Please start KYC first.',
                 'message': 'Please start KYC first.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
@@ -416,11 +417,23 @@ class AadhaarDetailsView(APIView):
         if kyc_app.status not in [KYCStatus.IN_PROGRESS, KYCStatus.RESUBMIT]:
             return Response({
                 'success': False,
+                'error': f'Cannot update Aadhaar details. KYC status: {kyc_app.status}',
                 'message': f'Cannot update Aadhaar details. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = AadhaarDetailsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            # Return validation errors in a clear format
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                for error in errors:
+                    error_messages.append(f'{field}: {error}')
+            return Response({
+                'success': False,
+                'error': '; '.join(error_messages),
+                'message': 'Validation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         identity_proof = kyc_app.identity_proof
         identity_proof.aadhaar_number = serializer.validated_data['aadhaar_number']
@@ -465,6 +478,12 @@ class AadhaarUploadView(APIView):
     """
     permission_classes = [IsAuthenticated, IsKYCOwner]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply KYC upload rate throttle."""
+        from users_auth.throttling import KYCUploadThrottle
+        return [KYCUploadThrottle()]
     
     def post(self, request):
         user = request.user
@@ -628,6 +647,12 @@ class PANUploadView(APIView):
     """
     permission_classes = [IsAuthenticated, IsKYCOwner]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply KYC upload rate throttle."""
+        from users_auth.throttling import KYCUploadThrottle
+        return [KYCUploadThrottle()]
     
     def post(self, request):
         user = request.user
@@ -798,6 +823,12 @@ class SelfieUploadView(APIView):
     """
     permission_classes = [IsAuthenticated, IsKYCOwner]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply KYC upload rate throttle."""
+        from users_auth.throttling import KYCUploadThrottle
+        return [KYCUploadThrottle()]
     
     def post(self, request):
         user = request.user
@@ -856,6 +887,12 @@ class OfficePhotosUploadView(APIView):
     """
     permission_classes = [IsAuthenticated, IsKYCOwner]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply KYC upload rate throttle."""
+        from users_auth.throttling import KYCUploadThrottle
+        return [KYCUploadThrottle()]
     
     def post(self, request):
         user = request.user
@@ -922,6 +959,12 @@ class AddressProofUploadView(APIView):
     """
     permission_classes = [IsAuthenticated, IsKYCOwner]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply KYC upload rate throttle."""
+        from users_auth.throttling import KYCUploadThrottle
+        return [KYCUploadThrottle()]
     
     def post(self, request):
         user = request.user

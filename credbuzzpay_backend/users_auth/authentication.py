@@ -79,6 +79,10 @@ class JWTAuthentication(BaseAuthentication):
         """
         Check if user has any active session that's not expired due to inactivity.
         Also updates the last activity timestamp.
+        
+        Single Session Login:
+        - When user logs in on a new device, all previous sessions are invalidated
+        - If no active session exists, the user must login again
         """
         inactivity_timeout = JWTManager.get_inactivity_timeout()
         
@@ -89,9 +93,11 @@ class JWTAuthentication(BaseAuthentication):
         )
         
         if not active_sessions.exists():
-            # No active session means token might be from before we added this check
-            # Allow it but log warning
-            return
+            # No active session - user logged in from another device or all sessions expired
+            # This enforces single session login - old sessions are invalidated on new login
+            raise AuthenticationFailed(
+                'Session has been invalidated. You may have logged in from another device. Please login again.'
+            )
         
         # Check if all sessions have expired due to inactivity
         all_inactive = True

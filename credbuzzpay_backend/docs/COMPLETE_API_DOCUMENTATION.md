@@ -20,6 +20,31 @@ This document provides comprehensive documentation for all API endpoints in the 
 6. [KYC Verification APIs](#6-kyc-verification-apis)
 7. [RBAC (Role-Based Access Control) APIs](#7-rbac-apis)
 8. [Access Management APIs](#8-access-management-apis)
+9. [Bill Pay APIs](#9-bill-pay-apis)
+
+---
+
+## Security Features (NEW)
+
+### Rate Limiting
+| Endpoint Type | Rate Limit |
+|---------------|------------|
+| Login | 10 requests/minute |
+| Registration | 5 requests/hour |
+| OTP | 5 requests/minute |
+| KYC Uploads | 20 requests/hour |
+| General APIs | 1000 requests/hour |
+
+### Single Session Login
+- When a user logs in on a new device, all previous sessions are invalidated
+- Old sessions will receive 401 Unauthorized with message "Session has been invalidated"
+- User must login again on old device
+
+### Security Headers
+- X-Frame-Options: DENY (prevents clickjacking)
+- Content-Type-Nosniff: True (prevents MIME type sniffing)
+- HTTPS enforced in production
+- HSTS enabled with 1 year max-age
 
 ---
 
@@ -1010,4 +1035,102 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/profile-full/" -Method GE
 
 ---
 
-*Last Updated: December 5, 2024*
+## 9. Bill Pay APIs
+
+The Bill Pay module provides APIs for paying utility bills, recharges, and other payments.
+
+### 9.1 List Bill Categories
+
+**Endpoint:** `GET /api/bills/categories/`  
+**Auth Required:** Yes
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Bill categories retrieved successfully.",
+    "data": {
+        "categories": [
+            {"id": 1, "name": "Electricity", "code": "ELECTRICITY", "billers_count": 5},
+            {"id": 2, "name": "Gas", "code": "GAS", "billers_count": 3}
+        ]
+    }
+}
+```
+
+### 9.2 List Billers
+
+**Endpoint:** `GET /api/bills/billers/`  
+**Auth Required:** Yes
+
+**Query Parameters:** `category_id`, `category_code`, `search`, `featured`
+
+### 9.3 Get Biller Details
+
+**Endpoint:** `GET /api/bills/billers/<biller_id>/`  
+**Auth Required:** Yes
+
+### 9.4 Fetch Bill
+
+**Endpoint:** `POST /api/bills/fetch/`  
+**Auth Required:** Yes
+
+**Request Body:**
+```json
+{
+    "biller_id": 1,
+    "consumer_number": "1234567890"
+}
+```
+
+### 9.5 Pay Bill
+
+**Endpoint:** `POST /api/bills/pay/`  
+**Auth Required:** Yes
+
+**Request Body:**
+```json
+{
+    "biller_id": 1,
+    "consumer_number": "1234567890",
+    "amount": 1500.00,
+    "payment_method": "WALLET"
+}
+```
+
+**Payment Methods:** `WALLET`, `UPI`, `CARD`, `NETBANKING`
+
+### 9.6 Payment History
+
+**Endpoint:** `GET /api/bills/history/`  
+**Auth Required:** Yes
+
+**Query Parameters:** `status`, `category_id`, `biller_id`, `start_date`, `end_date`, `page`, `page_size`
+
+### 9.7 Payment Details
+
+**Endpoint:** `GET /api/bills/payments/<transaction_id>/`  
+**Auth Required:** Yes
+
+### 9.8 Saved Billers
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/bills/saved/` | GET | List saved billers |
+| `/api/bills/saved/` | POST | Save a biller |
+| `/api/bills/saved/<id>/` | GET | Get saved biller details |
+| `/api/bills/saved/<id>/` | PUT | Update saved biller |
+| `/api/bills/saved/<id>/` | DELETE | Remove saved biller |
+
+### 9.9 Quick Access
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/bills/featured/` | GET | Get featured billers |
+| `/api/bills/recent/` | GET | Get recent payments |
+
+**For complete Bill Pay documentation, see:** [BILL_PAY_API_DOCUMENTATION.md](BILL_PAY_API_DOCUMENTATION.md)
+
+---
+
+*Last Updated: December 8, 2025*

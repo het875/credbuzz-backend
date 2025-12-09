@@ -48,6 +48,12 @@ class RegisterView(APIView):
     }
     """
     permission_classes = [AllowAny]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply registration rate throttle."""
+        from .throttling import RegistrationRateThrottle
+        return [RegistrationRateThrottle()]
     
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
@@ -119,11 +125,18 @@ class LoginView(APIView):
     - Progressive lockout after failed attempts (2min, 5min, 10min, 30min, 60min, block)
     - Returns app_access and feature_access arrays
     - Session inactivity timeout (30 minutes like bank apps)
+    - Rate limiting: 10 login attempts per minute per IP
     
     POST /api/auth/login/
     Request body: {"identifier": "email/username/user_code/phone", "password": "..."}
     """
     permission_classes = [AllowAny]
+    throttle_classes = []  # Using custom throttle below
+    
+    def get_throttles(self):
+        """Apply login rate throttle."""
+        from .throttling import LoginRateThrottle
+        return [LoginRateThrottle()]
     
     def _detect_identifier_type(self, identifier):
         """Auto-detect the type of identifier provided."""
@@ -242,6 +255,12 @@ class LoginView(APIView):
         # Generate tokens (now includes permissions)
         tokens = JWTManager.generate_tokens(user)
         
+        # Invalidate all previous active sessions (single session login)
+        # This ensures user can only be logged in from one device at a time
+        previous_sessions = UserSession.objects.filter(user=user, is_active=True)
+        previous_sessions_count = previous_sessions.count()
+        previous_sessions.update(is_active=False)
+        
         # Create session with activity tracking
         session = UserSession.objects.create(
             user=user,
@@ -253,6 +272,26 @@ class LoginView(APIView):
         
         # Get app and feature access for response
         app_access, feature_access = JWTManager.get_user_permissions(user)
+        
+        # Get KYC status
+        kyc_status = None
+        if hasattr(user, 'kyc_application'):
+            kyc_app = user.kyc_application
+            kyc_status = {
+                'status': kyc_app.status,
+                'application_id': kyc_app.application_id,
+                'current_step': kyc_app.current_step,
+                'mega_step': kyc_app.mega_step,
+                'completion_percentage': kyc_app.completion_percentage,
+            }
+        else:
+            kyc_status = {
+                'status': 'NOT_STARTED',
+                'application_id': None,
+                'current_step': 0,
+                'mega_step': None,
+                'completion_percentage': 0,
+            }
         
         return Response({
             'success': True,
@@ -266,6 +305,8 @@ class LoginView(APIView):
                 # Permission arrays for frontend
                 'app_access': app_access,
                 'feature_access': feature_access,
+                # KYC status for redirect decision
+                'kyc_status': kyc_status,
                 # Session info
                 'session': {
                     'session_id': session.token_id,

@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/auth/', include('users_auth.urls')),
     path('api/rbac/', include('rbac.urls', namespace='rbac')),
     path('api/kyc/', include('kyc_verification.urls', namespace='kyc_verification')),
+    path('api/bills/', include('bill_pay.urls', namespace='bill_pay')),
     
     # OTP endpoints under auth
     path('api/auth/send-otp/', OTPSendView.as_view(), name='send-otp'),
