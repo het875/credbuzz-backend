@@ -144,7 +144,7 @@ credbuzzpay_backend/
 
 ## API Endpoints Overview
 
-### Authentication (`/api/auth/`)
+### Authentication (`/api/auth-user/`)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

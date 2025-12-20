@@ -49,33 +49,33 @@ If you want to use Postman's cloud runner, you need to:
 ### Authentication
 | # | Request | Method | Endpoint |
 |---|---------|--------|----------|
-| 1 | Register User | POST | `/api/auth/register/` |
-| 2 | Login User | POST | `/api/auth/login/` |
-| 3 | Refresh Token | POST | `/api/auth/refresh-token/` |
-| 4 | Logout | POST | `/api/auth/logout/` |
+| 1 | Register User | POST | `/api/auth-user/register/` |
+| 2 | Login User | POST | `/api/auth-user/login/` |
+| 3 | Refresh Token | POST | `/api/auth-user/refresh-token/` |
+| 4 | Logout | POST | `/api/auth-user/logout/` |
 
 ### User Profile
 | # | Request | Method | Endpoint |
 |---|---------|--------|----------|
-| 5 | Get Profile | GET | `/api/auth/profile/` |
-| 6 | Update Profile | PUT | `/api/auth/profile/` |
+| 5 | Get Profile | GET | `/api/auth-user/profile/` |
+| 6 | Update Profile | PUT | `/api/auth-user/profile/` |
 
 ### Password Management
 | # | Request | Method | Endpoint |
 |---|---------|--------|----------|
-| 7 | Forgot Password | POST | `/api/auth/forgot-password/` |
-| 8 | Reset Password | POST | `/api/auth/reset-password/` |
-| 9 | Change Password | POST | `/api/auth/change-password/` |
+| 7 | Forgot Password | POST | `/api/auth-user/forgot-password/` |
+| 8 | Reset Password | POST | `/api/auth-user/reset-password/` |
+| 9 | Change Password | POST | `/api/auth-user/change-password/` |
 
 ### User Management
 | # | Request | Method | Endpoint |
 |---|---------|--------|----------|
-| 10 | List Users | GET | `/api/auth/users/` |
-| 11 | Get User by ID | GET | `/api/auth/users/{id}/` |
-| 12 | Update User by ID | PUT | `/api/auth/users/{id}/` |
-| 13 | Delete User | DELETE | `/api/auth/users/{id}/` |
-| 14 | Activate User | POST | `/api/auth/users/{id}/activate/` |
-| 15 | Deactivate User | POST | `/api/auth/users/{id}/deactivate/` |
+| 10 | List Users | GET | `/api/auth-user/users/` |
+| 11 | Get User by ID | GET | `/api/auth-user/users/{id}/` |
+| 12 | Update User by ID | PUT | `/api/auth-user/users/{id}/` |
+| 13 | Delete User | DELETE | `/api/auth-user/users/{id}/` |
+| 14 | Activate User | POST | `/api/auth-user/users/{id}/activate/` |
+| 15 | Deactivate User | POST | `/api/auth-user/users/{id}/deactivate/` |
 
 ### RBAC (Role-Based Access Control)
 | # | Request | Method | Endpoint |
@@ -159,26 +159,26 @@ python manage.py test users_auth
 ## Manual cURL Tests
 ```bash
 # Register
-curl -X POST http://127.0.0.1:8000/api/auth/register/ \
+curl -X POST http://127.0.0.1:8000/api/auth-user/register/ \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","username":"testuser","password":"Test@1234","confirm_password":"Test@1234","first_name":"Test","last_name":"User"}'
 
 # Login (with email)
-curl -X POST http://127.0.0.1:8000/api/auth/login/ \
+curl -X POST http://127.0.0.1:8000/api/auth-user/login/ \
   -H "Content-Type: application/json" \
   -d '{"identifier":"dev@credbuzz.com","password":"Developer@123"}'
 
 # Login (with username)
-curl -X POST http://127.0.0.1:8000/api/auth/login/ \
+curl -X POST http://127.0.0.1:8000/api/auth-user/login/ \
   -H "Content-Type: application/json" \
   -d '{"identifier":"developer","password":"Developer@123"}'
 
 # Login (with user_code)
-curl -X POST http://127.0.0.1:8000/api/auth/login/ \
+curl -X POST http://127.0.0.1:8000/api/auth-user/login/ \
   -H "Content-Type: application/json" \
   -d '{"identifier":"CGX0R0","password":"Developer@123"}'
 
 # Get Profile (with token)
-curl -X GET http://127.0.0.1:8000/api/auth/profile/ \
+curl -X GET http://127.0.0.1:8000/api/auth-user/profile/ \
   -H "Authorization: Bearer <access_token>"
 ```

@@ -155,7 +155,7 @@ python manage.py runserver
 http://127.0.0.1:8000/api/
 ```
 
-### Authentication Endpoints (`/api/auth/`)
+### Authentication Endpoints (`/api/auth-user/`)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
