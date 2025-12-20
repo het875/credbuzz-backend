@@ -71,4 +71,4 @@ psycopg2-binary==2.9.10
 
 uritemplate==3.0.1
 
-drf-yasg==1.20.0
+drf-yasg==1.19.0
