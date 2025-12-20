@@ -114,6 +114,9 @@ pydantic==2.6.4
 pydantic_core==2.16.3
 PyJWT==2.10.1
 PySocks==1.7.1
+
+python-dotenv==1.1.1
+
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 pytz==2025.2
@@ -146,3 +149,19 @@ websockets==15.0.1
 whitenoise==6.8.2
 wsproto==1.2.0
 yarl==1.22.0
+
+dj-database-url==3.0.1
+
+psycopg2-binary==2.9.10
+gunicorn==21.2.0
+django-cors-headers==4.3.1  # Added missing package
+exceptiongroup==1.3.1  # Added for Python 3.9 compatibility
+pillow==10.4.0  # Added for image processing
+python-dotenv==1.0.0  # Environment variables loading
+cryptography==41.0.0  # Encryption for sensitive data (Fernet)
+
+psycopg2-binary==2.9.10
+
+uritemplate==3.0.1
+
+drf-yasg==1.19.0
