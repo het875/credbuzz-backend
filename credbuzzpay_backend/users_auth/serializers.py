@@ -4,6 +4,7 @@ Serializers for users_auth app
 from rest_framework import serializers
 from .models import User, PasswordResetToken, RoleName
 import re
+from django.utils import timezone
 
 
 class UserRegistrationSerializer(serializers.Serializer):
@@ -544,11 +545,13 @@ class CreatePrivilegedUserSerializer(serializers.Serializer):
             username=validated_data['username'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
-            role=validated_data['role'],
+            user_role=validated_data['role'],  # Maps to user_role field in model
             is_active=True,
             is_verified=True, # Auto-verify privileged users
-            mobile_verified=True,
-            email_verified=True
+            is_phone_verified=True,  # Maps to is_phone_verified
+            is_email_verified=True,  # Maps to is_email_verified
+            email_verified_at=timezone.now(),
+            phone_verified_at=timezone.now()
         )
         
         # Generate Salt and Hash Password

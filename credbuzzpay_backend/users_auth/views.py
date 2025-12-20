@@ -1391,12 +1391,12 @@ class CreatePrivilegedUserView(APIView):
             
             return Response({
                 'success': True,
-                'message': f'{user.role} user created successfully.',
+                'message': f'{user.user_role} user created successfully.',
                 'data': {
                     'user_code': user.user_code,
                     'email': user.email,
                     'username': user.username,
-                    'role': user.role,
+                    'role': user.user_role,
                     'created_at': user.created_at
                 }
             }, status=status.HTTP_201_CREATED)
