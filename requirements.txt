@@ -29,6 +29,9 @@ pydantic==2.6.4
 pydantic_core==2.16.3
 PyJWT==2.10.1
 PySocks==1.7.1
+
+python-dotenv==1.1.1
+
 python-dateutil==2.9.0.post0
 pytz==2025.2
 python-dotenv==1.1.1
@@ -67,3 +70,6 @@ cryptography==41.0.0  # Encryption for sensitive data (Fernet)
 
 psycopg2-binary==2.9.10
 
+uritemplate==3.0.1
+
+drf-yasg==1.19.0
