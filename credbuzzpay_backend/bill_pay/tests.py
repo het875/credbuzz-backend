@@ -270,3 +270,345 @@ class SavedBillerTests(APITestCase):
         response = self.client.delete(f'/api/bills/saved/{saved.id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(SavedBiller.objects.filter(id=saved.id).exists())
+
+
+# =============================================================================
+# NEW TESTS FOR BILL PAY EXPANSION
+# =============================================================================
+
+from .models import UserBankAccount, UserCard, UserMPIN, PaymentGateway, TransactionLog
+
+
+class BankAccountTests(APITestCase):
+    """Tests for Bank Account management."""
+    
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create(
+            username='bankuser',
+            email='bank@example.com',
+            phone_number='9876543212'
+        )
+        cls.user.set_password('testpass123')
+        cls.user.save()
+    
+    def authenticate(self):
+        from users_auth.jwt_utils import JWTManager
+        from users_auth.models import UserSession
+        
+        tokens = JWTManager.generate_tokens(self.user)
+        UserSession.objects.create(
+            user=self.user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            ip_address='127.0.0.1',
+            user_agent='Test Client'
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
+    
+    def test_list_bank_accounts_empty(self):
+        """Test listing bank accounts when empty."""
+        self.authenticate()
+        response = self.client.get('/api/bills/bank-accounts/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('success'))
+        self.assertEqual(response.data['data']['count'], 0)
+    
+    def test_add_bank_account(self):
+        """Test adding a bank account."""
+        self.authenticate()
+        response = self.client.post('/api/bills/bank-accounts/', {
+            'account_holder_name': 'Test User',
+            'account_number': '123456789012',
+            'confirm_account_number': '123456789012',
+            'ifsc_code': 'SBIN0001234',
+            'bank_name': 'State Bank of India',
+            'account_type': 'SAVINGS',
+            'nickname': 'Salary Account'
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data.get('success'))
+    
+    def test_add_bank_account_mismatched_numbers(self):
+        """Test that mismatched account numbers are rejected."""
+        self.authenticate()
+        response = self.client.post('/api/bills/bank-accounts/', {
+            'account_holder_name': 'Test User',
+            'account_number': '123456789012',
+            'confirm_account_number': '987654321012',
+            'ifsc_code': 'SBIN0001234',
+            'bank_name': 'State Bank of India',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    def test_add_bank_account_invalid_ifsc(self):
+        """Test that invalid IFSC is rejected."""
+        self.authenticate()
+        response = self.client.post('/api/bills/bank-accounts/', {
+            'account_holder_name': 'Test User',
+            'account_number': '123456789012',
+            'confirm_account_number': '123456789012',
+            'ifsc_code': 'INVALID',
+            'bank_name': 'State Bank of India',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class CardTests(APITestCase):
+    """Tests for Card management."""
+    
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create(
+            username='carduser',
+            email='card@example.com',
+            phone_number='9876543213'
+        )
+        cls.user.set_password('testpass123')
+        cls.user.save()
+    
+    def authenticate(self):
+        from users_auth.jwt_utils import JWTManager
+        from users_auth.models import UserSession
+        
+        tokens = JWTManager.generate_tokens(self.user)
+        UserSession.objects.create(
+            user=self.user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            ip_address='127.0.0.1',
+            user_agent='Test Client'
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
+    
+    def test_list_cards_empty(self):
+        """Test listing cards when empty."""
+        self.authenticate()
+        response = self.client.get('/api/bills/cards/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('success'))
+        self.assertEqual(response.data['data']['count'], 0)
+    
+    def test_add_card(self):
+        """Test adding a card."""
+        self.authenticate()
+        response = self.client.post('/api/bills/cards/', {
+            'card_number': '4111111111111111',
+            'card_holder_name': 'Test User',
+            'expiry_month': '12',
+            'expiry_year': '2028',
+            'card_type': 'DEBIT',
+            'card_network': 'VISA',
+            'nickname': 'Primary Card'
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data.get('success'))
+
+
+class MPINTests(APITestCase):
+    """Tests for MPIN functionality."""
+    
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create(
+            username='mpinuser',
+            email='mpin@example.com',
+            phone_number='9876543214'
+        )
+        cls.user.set_password('testpass123')
+        cls.user.save()
+    
+    def authenticate(self):
+        from users_auth.jwt_utils import JWTManager
+        from users_auth.models import UserSession
+        
+        tokens = JWTManager.generate_tokens(self.user)
+        UserSession.objects.create(
+            user=self.user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            ip_address='127.0.0.1',
+            user_agent='Test Client'
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
+    
+    def test_mpin_status_not_set(self):
+        """Test checking MPIN status when not set."""
+        self.authenticate()
+        response = self.client.get('/api/bills/mpin/setup/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['data']['has_mpin'])
+    
+    def test_mpin_setup(self):
+        """Test setting up MPIN."""
+        self.authenticate()
+        response = self.client.post('/api/bills/mpin/setup/', {
+            'mpin': '123456',
+            'confirm_mpin': '123456',
+            'password': 'testpass123'
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data['data']['has_mpin'])
+    
+    def test_mpin_setup_wrong_password(self):
+        """Test MPIN setup with wrong password is rejected."""
+        self.authenticate()
+        response = self.client.post('/api/bills/mpin/setup/', {
+            'mpin': '123456',
+            'confirm_mpin': '123456',
+            'password': 'wrongpassword'
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    def test_mpin_verify(self):
+        """Test verifying MPIN."""
+        self.authenticate()
+        # First setup MPIN
+        self.client.post('/api/bills/mpin/setup/', {
+            'mpin': '654321',
+            'confirm_mpin': '654321',
+            'password': 'testpass123'
+        })
+        # Now verify
+        response = self.client.post('/api/bills/mpin/verify/', {
+            'mpin': '654321'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['data']['verified'])
+    
+    def test_mpin_verify_wrong(self):
+        """Test that wrong MPIN is rejected."""
+        self.authenticate()
+        # First setup MPIN
+        self.client.post('/api/bills/mpin/setup/', {
+            'mpin': '654321',
+            'confirm_mpin': '654321',
+            'password': 'testpass123'
+        })
+        # Try wrong MPIN
+        response = self.client.post('/api/bills/mpin/verify/', {
+            'mpin': '999999'
+        })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class IFSCTests(APITestCase):
+    """Tests for IFSC verification."""
+    
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create(
+            username='ifscuser',
+            email='ifsc@example.com',
+            phone_number='9876543215'
+        )
+        cls.user.set_password('testpass123')
+        cls.user.save()
+    
+    def authenticate(self):
+        from users_auth.jwt_utils import JWTManager
+        from users_auth.models import UserSession
+        
+        tokens = JWTManager.generate_tokens(self.user)
+        UserSession.objects.create(
+            user=self.user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            ip_address='127.0.0.1',
+            user_agent='Test Client'
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
+    
+    def test_ifsc_verify_valid(self):
+        """Test IFSC verification with valid code."""
+        self.authenticate()
+        response = self.client.get('/api/bills/ifsc/SBIN0001234/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('success'))
+        self.assertEqual(response.data['data']['bank_name'], 'State Bank of India')
+    
+    def test_ifsc_verify_invalid_format(self):
+        """Test IFSC verification with invalid format."""
+        self.authenticate()
+        response = self.client.get('/api/bills/ifsc/INVALID/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class TransactionLogTests(APITestCase):
+    """Tests for Transaction Logs."""
+    
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create(
+            username='txnuser',
+            email='txn@example.com',
+            phone_number='9876543216'
+        )
+        cls.user.set_password('testpass123')
+        cls.user.save()
+    
+    def authenticate(self):
+        from users_auth.jwt_utils import JWTManager
+        from users_auth.models import UserSession
+        
+        tokens = JWTManager.generate_tokens(self.user)
+        UserSession.objects.create(
+            user=self.user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            ip_address='127.0.0.1',
+            user_agent='Test Client'
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
+    
+    def test_list_transactions_empty(self):
+        """Test listing transactions when empty."""
+        self.authenticate()
+        response = self.client.get('/api/bills/transactions/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('success'))
+        self.assertEqual(response.data['data']['pagination']['total_count'], 0)
+
+
+class PaymentGatewayTests(APITestCase):
+    """Tests for Payment Gateways."""
+    
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create(
+            username='gatewayuser',
+            email='gateway@example.com',
+            phone_number='9876543217'
+        )
+        cls.user.set_password('testpass123')
+        cls.user.save()
+        
+        # Create test gateway
+        PaymentGateway.objects.create(
+            name='Razorpay',
+            code='RAZORPAY',
+            gateway_type='UPI',
+            is_active=True
+        )
+    
+    def authenticate(self):
+        from users_auth.jwt_utils import JWTManager
+        from users_auth.models import UserSession
+        
+        tokens = JWTManager.generate_tokens(self.user)
+        UserSession.objects.create(
+            user=self.user,
+            token_id=tokens['refresh_token_id'],
+            expires_at=tokens['refresh_token_expiry'],
+            ip_address='127.0.0.1',
+            user_agent='Test Client'
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
+    
+    def test_list_gateways(self):
+        """Test listing payment gateways."""
+        self.authenticate()
+        response = self.client.get('/api/bills/gateways/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('success'))
+        self.assertGreaterEqual(len(response.data['data']['gateways']), 1)

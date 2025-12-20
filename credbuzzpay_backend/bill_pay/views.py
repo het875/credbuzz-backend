@@ -152,7 +152,7 @@ class BillFetchView(APIView):
     {
         "biller_id": 1,
         "consumer_number": "123456789",
-        "additional_fields": {}
+        "additional_params": {}
     }
     """
     permission_classes = [IsAuthenticated]
@@ -168,7 +168,7 @@ class BillFetchView(APIView):
         
         biller_id = serializer.validated_data['biller_id']
         consumer_number = serializer.validated_data['consumer_number']
-        additional_fields = serializer.validated_data.get('additional_fields', {})
+        additional_params = serializer.validated_data.get('additional_params', {})
         
         try:
             biller = Biller.objects.get(id=biller_id, is_active=True)
@@ -197,7 +197,7 @@ class BillFetchView(APIView):
             user=request.user,
             biller=biller,
             consumer_number=consumer_number,
-            request_data={'additional_fields': additional_fields},
+            request_data={'additional_params': additional_params},
             response_data=bill_data,
             is_success=True
         )
@@ -223,7 +223,7 @@ class BillPaymentView(APIView):
     {
         "biller_id": 1,
         "consumer_number": "123456789",
-        "bill_amount": 1234.56,
+        "amount": 1234.56,
         "consumer_name": "John Doe",
         "payment_method": "WALLET"
     }
@@ -249,7 +249,7 @@ class BillPaymentView(APIView):
                 'message': 'Biller not found or inactive.'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        bill_amount = serializer.validated_data['bill_amount']
+        bill_amount = serializer.validated_data['amount']
         
         # Validate amount limits
         if bill_amount < biller.min_amount:
@@ -536,3 +536,768 @@ class SavedBillerDetailView(APIView):
             'success': True,
             'message': 'Saved biller deleted successfully.'
         })
+
+
+# =============================================================================
+# BANK ACCOUNT VIEWS
+# =============================================================================
+
+from .models import UserBankAccount, UserCard, UserMPIN, PaymentGateway, TransactionLog, TransactionType
+from .serializers import (
+    UserBankAccountSerializer, UserBankAccountCreateSerializer, UserBankAccountUpdateSerializer,
+    UserCardSerializer, UserCardCreateSerializer, UserCardUpdateSerializer,
+    MPINSetupSerializer, MPINVerifySerializer, MPINChangeSerializer,
+    PaymentGatewaySerializer,
+    TransactionLogSerializer, TransactionLogDetailSerializer,
+    IFSCVerifySerializer, IFSCResponseSerializer,
+    MoneyTransferSerializer
+)
+
+
+class BankAccountListView(APIView):
+    """
+    List and add user bank accounts.
+    
+    GET /api/bills/bank-accounts/
+    POST /api/bills/bank-accounts/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        accounts = UserBankAccount.objects.filter(user=request.user, is_active=True)
+        serializer = UserBankAccountSerializer(accounts, many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Bank accounts retrieved successfully.',
+            'data': {
+                'bank_accounts': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
+    
+    def post(self, request):
+        serializer = UserBankAccountCreateSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        account = serializer.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Bank account added successfully.',
+            'data': {
+                'bank_account': UserBankAccountSerializer(account).data
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class BankAccountDetailView(APIView):
+    """
+    Manage a specific bank account.
+    
+    GET /api/bills/bank-accounts/<id>/
+    PUT /api/bills/bank-accounts/<id>/
+    DELETE /api/bills/bank-accounts/<id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, pk, user):
+        try:
+            return UserBankAccount.objects.get(id=pk, user=user, is_active=True)
+        except UserBankAccount.DoesNotExist:
+            return None
+    
+    def get(self, request, pk):
+        account = self.get_object(pk, request.user)
+        if not account:
+            return Response({
+                'success': False,
+                'message': 'Bank account not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = UserBankAccountSerializer(account)
+        
+        return Response({
+            'success': True,
+            'message': 'Bank account retrieved successfully.',
+            'data': {
+                'bank_account': serializer.data
+            }
+        })
+    
+    def put(self, request, pk):
+        account = self.get_object(pk, request.user)
+        if not account:
+            return Response({
+                'success': False,
+                'message': 'Bank account not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = UserBankAccountUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update allowed fields
+        if 'nickname' in serializer.validated_data:
+            account.nickname = serializer.validated_data['nickname']
+        if 'is_primary' in serializer.validated_data:
+            account.is_primary = serializer.validated_data['is_primary']
+        if 'is_active' in serializer.validated_data:
+            account.is_active = serializer.validated_data['is_active']
+        
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Bank account updated successfully.',
+            'data': {
+                'bank_account': UserBankAccountSerializer(account).data
+            }
+        })
+    
+    def delete(self, request, pk):
+        account = self.get_object(pk, request.user)
+        if not account:
+            return Response({
+                'success': False,
+                'message': 'Bank account not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Soft delete
+        account.is_active = False
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Bank account deleted successfully.'
+        })
+
+
+class BankAccountVerifyView(APIView):
+    """
+    Verify a bank account (mock implementation).
+    
+    POST /api/bills/bank-accounts/<id>/verify/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        try:
+            account = UserBankAccount.objects.get(id=pk, user=request.user, is_active=True)
+        except UserBankAccount.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Bank account not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if account.is_verified:
+            return Response({
+                'success': False,
+                'message': 'Bank account is already verified.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Mock verification - In production, this would call a bank verification API
+        # Simulate verification success
+        account.is_verified = True
+        account.verification_status = 'VERIFIED'
+        account.verified_at = timezone.now()
+        account.verification_response = {
+            'verified': True,
+            'verified_at': timezone.now().isoformat(),
+            'method': 'PENNY_DROP'
+        }
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Bank account verified successfully.',
+            'data': {
+                'bank_account': UserBankAccountSerializer(account).data
+            }
+        })
+
+
+# =============================================================================
+# CARD VIEWS
+# =============================================================================
+
+class CardListView(APIView):
+    """
+    List and add user cards.
+    
+    GET /api/bills/cards/
+    POST /api/bills/cards/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        cards = UserCard.objects.filter(user=request.user, is_active=True)
+        serializer = UserCardSerializer(cards, many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Cards retrieved successfully.',
+            'data': {
+                'cards': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
+    
+    def post(self, request):
+        serializer = UserCardCreateSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        card = serializer.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Card added successfully.',
+            'data': {
+                'card': UserCardSerializer(card).data
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class CardDetailView(APIView):
+    """
+    Manage a specific card.
+    
+    GET /api/bills/cards/<id>/
+    PUT /api/bills/cards/<id>/
+    DELETE /api/bills/cards/<id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, pk, user):
+        try:
+            return UserCard.objects.get(id=pk, user=user, is_active=True)
+        except UserCard.DoesNotExist:
+            return None
+    
+    def get(self, request, pk):
+        card = self.get_object(pk, request.user)
+        if not card:
+            return Response({
+                'success': False,
+                'message': 'Card not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = UserCardSerializer(card)
+        
+        return Response({
+            'success': True,
+            'message': 'Card retrieved successfully.',
+            'data': {
+                'card': serializer.data
+            }
+        })
+    
+    def put(self, request, pk):
+        card = self.get_object(pk, request.user)
+        if not card:
+            return Response({
+                'success': False,
+                'message': 'Card not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = UserCardUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update allowed fields
+        if 'nickname' in serializer.validated_data:
+            card.nickname = serializer.validated_data['nickname']
+        if 'is_primary' in serializer.validated_data:
+            card.is_primary = serializer.validated_data['is_primary']
+        if 'is_active' in serializer.validated_data:
+            card.is_active = serializer.validated_data['is_active']
+        
+        card.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Card updated successfully.',
+            'data': {
+                'card': UserCardSerializer(card).data
+            }
+        })
+    
+    def delete(self, request, pk):
+        card = self.get_object(pk, request.user)
+        if not card:
+            return Response({
+                'success': False,
+                'message': 'Card not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Soft delete
+        card.is_active = False
+        card.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Card deleted successfully.'
+        })
+
+
+# =============================================================================
+# MPIN VIEWS
+# =============================================================================
+
+class MPINSetupView(APIView):
+    """
+    Set up MPIN for payment authorization.
+    
+    POST /api/bills/mpin/setup/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Check if MPIN is already set
+        has_mpin = UserMPIN.objects.filter(user=request.user).exists()
+        
+        return Response({
+            'success': True,
+            'data': {
+                'has_mpin': has_mpin
+            }
+        })
+    
+    def post(self, request):
+        # Check if MPIN already exists
+        if UserMPIN.objects.filter(user=request.user).exists():
+            return Response({
+                'success': False,
+                'message': 'MPIN is already set. Use change MPIN to update.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = MPINSetupSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create MPIN
+        mpin = UserMPIN(user=request.user)
+        mpin.set_mpin(serializer.validated_data['mpin'])
+        mpin.save()
+        
+        return Response({
+            'success': True,
+            'message': 'MPIN set up successfully.',
+            'data': {
+                'has_mpin': True
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class MPINVerifyView(APIView):
+    """
+    Verify MPIN for payment authorization.
+    
+    POST /api/bills/mpin/verify/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            mpin = UserMPIN.objects.get(user=request.user)
+        except UserMPIN.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'MPIN is not set. Please set up MPIN first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if locked
+        if mpin.is_currently_locked():
+            minutes_remaining = 0
+            if mpin.locked_until:
+                minutes_remaining = int((mpin.locked_until - timezone.now()).total_seconds() / 60) + 1
+            
+            return Response({
+                'success': False,
+                'message': f'MPIN is locked due to too many failed attempts. Try again in {minutes_remaining} minutes.'
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        serializer = MPINVerifySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify MPIN
+        if mpin.check_mpin(serializer.validated_data['mpin']):
+            mpin.record_success()
+            return Response({
+                'success': True,
+                'message': 'MPIN verified successfully.',
+                'data': {
+                    'verified': True
+                }
+            })
+        else:
+            mpin.record_failed_attempt()
+            remaining_attempts = max(0, 3 - mpin.failed_attempts)
+            
+            return Response({
+                'success': False,
+                'message': f'Invalid MPIN. {remaining_attempts} attempts remaining.',
+                'data': {
+                    'verified': False,
+                    'remaining_attempts': remaining_attempts
+                }
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class MPINChangeView(APIView):
+    """
+    Change MPIN.
+    
+    POST /api/bills/mpin/change/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            mpin = UserMPIN.objects.get(user=request.user)
+        except UserMPIN.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'MPIN is not set. Please set up MPIN first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if locked
+        if mpin.is_currently_locked():
+            return Response({
+                'success': False,
+                'message': 'MPIN is locked due to too many failed attempts.'
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        serializer = MPINChangeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify current MPIN
+        if not mpin.check_mpin(serializer.validated_data['current_mpin']):
+            mpin.record_failed_attempt()
+            return Response({
+                'success': False,
+                'message': 'Current MPIN is incorrect.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Set new MPIN
+        mpin.set_mpin(serializer.validated_data['new_mpin'])
+        mpin.save()
+        
+        return Response({
+            'success': True,
+            'message': 'MPIN changed successfully.'
+        })
+
+
+# =============================================================================
+# PAYMENT GATEWAY VIEWS
+# =============================================================================
+
+class PaymentGatewayListView(APIView):
+    """
+    List available payment gateways.
+    
+    GET /api/bills/gateways/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        gateways = PaymentGateway.objects.filter(is_active=True)
+        
+        # Optional filter by gateway type
+        gateway_type = request.query_params.get('type')
+        if gateway_type:
+            gateways = gateways.filter(gateway_type=gateway_type.upper())
+        
+        serializer = PaymentGatewaySerializer(gateways, many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Payment gateways retrieved successfully.',
+            'data': {
+                'gateways': serializer.data
+            }
+        })
+
+
+# =============================================================================
+# IFSC VERIFICATION VIEW
+# =============================================================================
+
+class IFSCVerifyView(APIView):
+    """
+    Verify IFSC code and get bank details.
+    
+    GET /api/bills/ifsc/<ifsc_code>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, ifsc_code):
+        # Validate IFSC format
+        import re
+        ifsc_code = ifsc_code.upper()
+        if not re.match(r'^[A-Z]{4}0[A-Z0-9]{6}$', ifsc_code):
+            return Response({
+                'success': False,
+                'message': 'Invalid IFSC code format. Expected: ABCD0XXXXXX'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Mock IFSC data - In production, this would call an IFSC verification API
+        # Using first 4 characters as bank code
+        bank_codes = {
+            'SBIN': {'bank': 'State Bank of India', 'city': 'Mumbai'},
+            'HDFC': {'bank': 'HDFC Bank', 'city': 'Mumbai'},
+            'ICIC': {'bank': 'ICICI Bank', 'city': 'Mumbai'},
+            'KKBK': {'bank': 'Kotak Mahindra Bank', 'city': 'Mumbai'},
+            'UTIB': {'bank': 'Axis Bank', 'city': 'Mumbai'},
+            'PUNB': {'bank': 'Punjab National Bank', 'city': 'Delhi'},
+            'BARB': {'bank': 'Bank of Baroda', 'city': 'Vadodara'},
+            'CNRB': {'bank': 'Canara Bank', 'city': 'Bangalore'},
+            'UBIN': {'bank': 'Union Bank of India', 'city': 'Mumbai'},
+            'IOBA': {'bank': 'Indian Overseas Bank', 'city': 'Chennai'},
+        }
+        
+        bank_code = ifsc_code[:4]
+        bank_info = bank_codes.get(bank_code, {'bank': 'Unknown Bank', 'city': 'Unknown'})
+        
+        ifsc_data = {
+            'ifsc_code': ifsc_code,
+            'bank_name': bank_info['bank'],
+            'branch_name': f'{bank_info["city"]} Branch',
+            'address': f'{bank_info["city"]}, India',
+            'city': bank_info['city'],
+            'state': 'Maharashtra' if bank_info['city'] == 'Mumbai' else 'India',
+            'contact': '+91-1800-XXX-XXXX'
+        }
+        
+        return Response({
+            'success': True,
+            'message': 'IFSC code verified successfully.',
+            'data': ifsc_data
+        })
+
+
+# =============================================================================
+# TRANSACTION LOG VIEWS
+# =============================================================================
+
+class TransactionLogListView(APIView):
+    """
+    List user's transaction logs.
+    
+    GET /api/bills/transactions/
+    GET /api/bills/transactions/?type=BILL_PAYMENT
+    GET /api/bills/transactions/?status=SUCCESS
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        transactions = TransactionLog.objects.filter(user=request.user)
+        
+        # Filter by transaction type
+        txn_type = request.query_params.get('type')
+        if txn_type:
+            transactions = transactions.filter(transaction_type=txn_type.upper())
+        
+        # Filter by status
+        txn_status = request.query_params.get('status')
+        if txn_status:
+            transactions = transactions.filter(status=txn_status.upper())
+        
+        # Filter by date range
+        start_date = request.query_params.get('start_date')
+        if start_date:
+            transactions = transactions.filter(initiated_at__date__gte=start_date)
+        
+        end_date = request.query_params.get('end_date')
+        if end_date:
+            transactions = transactions.filter(initiated_at__date__lte=end_date)
+        
+        # Pagination
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        page_size = min(page_size, 100)  # Max 100 per page
+        
+        total_count = transactions.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        transactions = transactions[start:end]
+        serializer = TransactionLogSerializer(transactions, many=True)
+        
+        return Response({
+            'success': True,
+            'message': 'Transaction logs retrieved successfully.',
+            'data': {
+                'transactions': serializer.data,
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total_count': total_count,
+                    'total_pages': (total_count + page_size - 1) // page_size
+                }
+            }
+        })
+
+
+class TransactionLogDetailView(APIView):
+    """
+    Get details of a specific transaction.
+    
+    GET /api/bills/transactions/<transaction_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, transaction_id):
+        try:
+            transaction = TransactionLog.objects.get(
+                transaction_id=transaction_id,
+                user=request.user
+            )
+        except TransactionLog.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Transaction not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = TransactionLogDetailSerializer(transaction)
+        
+        return Response({
+            'success': True,
+            'message': 'Transaction details retrieved successfully.',
+            'data': {
+                'transaction': serializer.data
+            }
+        })
+
+
+# =============================================================================
+# MONEY TRANSFER VIEW
+# =============================================================================
+
+class MoneyTransferView(APIView):
+    """
+    Transfer money to another bank account.
+    
+    POST /api/bills/transfer/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = MoneyTransferSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid request.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get source bank account
+        try:
+            source_account = UserBankAccount.objects.get(
+                id=serializer.validated_data['source_bank_account_id'],
+                user=request.user,
+                is_active=True
+            )
+        except UserBankAccount.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Source bank account not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if not source_account.is_verified:
+            return Response({
+                'success': False,
+                'message': 'Source bank account must be verified before making transfers.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify MPIN
+        try:
+            mpin = UserMPIN.objects.get(user=request.user)
+        except UserMPIN.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'MPIN is not set. Please set up MPIN first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if mpin.is_currently_locked():
+            return Response({
+                'success': False,
+                'message': 'MPIN is locked due to too many failed attempts.'
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        if not mpin.check_mpin(serializer.validated_data['mpin']):
+            mpin.record_failed_attempt()
+            return Response({
+                'success': False,
+                'message': 'Invalid MPIN.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        mpin.record_success()
+        
+        # Create transaction log
+        from .models import encrypt_value
+        transaction = TransactionLog.create_log(
+            user=request.user,
+            transaction_type=TransactionType.MONEY_TRANSFER,
+            amount=serializer.validated_data['amount'],
+            payment_method='NEFT',
+            description=f"Transfer to {serializer.validated_data['beneficiary_name']}",
+            source_bank_account=source_account,
+            destination_account_number=encrypt_value(serializer.validated_data['beneficiary_account_number']),
+            destination_ifsc=serializer.validated_data['beneficiary_ifsc'].upper(),
+            destination_name=serializer.validated_data['beneficiary_name'],
+            remarks=serializer.validated_data.get('remarks', ''),
+            request=request
+        )
+        
+        # In production, this would initiate actual bank transfer via payment gateway
+        # For now, simulate success
+        transaction.mark_success(
+            gateway_txn_id=f'NEFT{transaction.transaction_id}',
+            gateway_response={
+                'status': 'SUCCESS',
+                'reference_number': f'NEFT{transaction.transaction_id}',
+                'timestamp': timezone.now().isoformat()
+            }
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Money transfer initiated successfully.',
+            'data': {
+                'transaction': TransactionLogSerializer(transaction).data
+            }
+        }, status=status.HTTP_201_CREATED)

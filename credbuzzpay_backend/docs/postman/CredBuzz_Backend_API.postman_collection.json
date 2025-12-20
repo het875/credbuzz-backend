@@ -133,9 +133,9 @@
 							"raw": "{\n    \"first_name\": \"Test\",\n    \"middle_name\": \"\",\n    \"last_name\": \"User\",\n    \"email\": \"testuser@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"Test@1234\",\n    \"confirm_password\": \"Test@1234\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/register/",
+							"raw": "{{base_url}}/auth-user/register/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "register", ""]
+							"path": ["auth-user", "register", ""]
 						},
 						"description": "**STEP 1:** Register a new user. OTPs are auto-saved to variables."
 					},
@@ -159,9 +159,9 @@
 							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"{{email_otp}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "verify-registration-otp", ""]
+							"path": ["auth-user", "verify-registration-otp", ""]
 						},
 						"description": "**STEP 2:** Verify email OTP"
 					},
@@ -185,9 +185,9 @@
 							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"PHONE\",\n    \"otp_code\": \"{{phone_otp}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "verify-registration-otp", ""]
+							"path": ["auth-user", "verify-registration-otp", ""]
 						},
 						"description": "**STEP 3:** Verify phone OTP. After this, user can login!"
 					},
@@ -227,9 +227,9 @@
 							"raw": "{\n    \"identifier\": \"{{registered_email}}\",\n    \"password\": \"Test@1234\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/login/",
+							"raw": "{{base_url}}/auth-user/login/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "login", ""]
+							"path": ["auth-user", "login", ""]
 						},
 						"description": "**STEP 4:** Login with verified user"
 					},
@@ -270,9 +270,9 @@
 							"raw": "{\n    \"identifier\": \"dev@credbuzz.com\",\n    \"password\": \"Developer@123\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/login/",
+							"raw": "{{base_url}}/auth-user/login/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "login", ""]
+							"path": ["auth-user", "login", ""]
 						},
 						"description": "Login as Developer using dynamic identifier. Response includes app_access and feature_access arrays.\n\n**Identifier Options:**\n- Email: dev@credbuzz.com\n- Username: developer\n- User Code: CGX0R0"
 					},
@@ -311,9 +311,9 @@
 							"raw": "{\n    \"identifier\": \"superadmin@credbuzz.com\",\n    \"password\": \"SuperAdmin@123\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/login/",
+							"raw": "{{base_url}}/auth-user/login/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "login", ""]
+							"path": ["auth-user", "login", ""]
 						},
 						"description": "Login as Super Admin using dynamic identifier.\n\n**Identifier Options:**\n- Email: superadmin@credbuzz.com\n- Username: superadmin\n- User Code: VYO541"
 					},
@@ -325,9 +325,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/me/",
+							"raw": "{{base_url}}/auth-user/profile/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "me", ""]
+							"path": ["auth-user", "profile", ""]
 						},
 						"description": "Get current user's profile including user_code and user_role fields."
 					},
@@ -380,9 +380,9 @@
 							"raw": "{\n    \"first_name\": \"John\",\n    \"middle_name\": \"K\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"SecurePass123!\",\n    \"confirm_password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/register/",
+							"raw": "{{base_url}}/auth-user/register/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "register", ""]
+							"path": ["auth-user", "register", ""]
 						},
 						"description": "Register a new user account.\n\n**Required Fields:**\n- first_name, last_name, email, phone_number, password, confirm_password\n\n**Optional Fields:**\n- middle_name\n\n**After Registration:**\n- OTPs sent to email AND phone\n- User must verify both before login (for END_USER role)\n- test_otps returned in response for development testing\n\n**User is assigned:**\n- user_role: END_USER (default)\n- user_code: Auto-generated 6-character unique code"
 					},
@@ -422,9 +422,9 @@
 							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"{{email_otp}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "verify-registration-otp", ""]
+							"path": ["auth-user", "verify-registration-otp", ""]
 						},
 						"description": "Verify Email OTP after registration.\n\n**otp_type options:**\n- EMAIL: Verify email address\n- PHONE: Verify phone number"
 					},
@@ -464,9 +464,9 @@
 							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"PHONE\",\n    \"otp_code\": \"{{phone_otp}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/verify-registration-otp/",
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "verify-registration-otp", ""]
+							"path": ["auth-user", "verify-registration-otp", ""]
 						},
 						"description": "Verify Phone OTP after registration.\n\n**Note:** END_USER must verify BOTH email and phone before login."
 					},
@@ -510,9 +510,9 @@
 							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/resend-registration-otp/",
+							"raw": "{{base_url}}/auth-user/resend-registration-otp/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "resend-registration-otp", ""]
+							"path": ["auth-user", "resend-registration-otp", ""]
 						},
 						"description": "Resend OTP for registration verification.\n\n**otp_type options:**\n- EMAIL: Resend email OTP\n- PHONE: Resend phone OTP"
 					},
@@ -553,9 +553,9 @@
 							"raw": "{\n    \"identifier\": \"user@example.com\",\n    \"password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/login/",
+							"raw": "{{base_url}}/auth-user/login/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "login", ""]
+							"path": ["auth-user", "login", ""]
 						},
 						"description": "**Dynamic Login** - Single identifier field auto-detects login type.\n\n**identifier field accepts:**\n- Email: user@example.com (contains @)\n- Phone: +1234567890 (starts with +)\n- User Code: ABC123 (6 alphanumeric chars)\n- Username: johndoe (default)\n\n**Response includes:**\n- app_access: Array of app IDs user can access\n- feature_access: Array of feature IDs user can access\n- session.inactivity_timeout_minutes: 30 min timeout\n\n**Security:**\n- 5 failed attempts → progressive lockout\n- 30 min inactivity → auto logout"
 					},
@@ -576,9 +576,9 @@
 							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/logout/",
+							"raw": "{{base_url}}/auth-user/logout/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "logout", ""]
+							"path": ["auth-user", "logout", ""]
 						},
 						"description": "Logout and invalidate current session."
 					},
@@ -614,9 +614,9 @@
 							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/refresh-token/",
+							"raw": "{{base_url}}/auth-user/refresh-token/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "refresh-token", ""]
+							"path": ["auth-user", "refresh-token", ""]
 						},
 						"description": "Get a new access token using the refresh token."
 					},
@@ -637,9 +637,9 @@
 							"raw": "{\n    \"email\": \"user@example.com\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/forgot-password/",
+							"raw": "{{base_url}}/auth-user/forgot-password/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "forgot-password", ""]
+							"path": ["auth-user", "forgot-password", ""]
 						},
 						"description": "Request a password reset token."
 					},
@@ -660,9 +660,9 @@
 							"raw": "{\n    \"token\": \"paste-reset-token-here\",\n    \"new_password\": \"NewSecurePass123!\",\n    \"confirm_password\": \"NewSecurePass123!\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/reset-password/",
+							"raw": "{{base_url}}/auth-user/reset-password/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "reset-password", ""]
+							"path": ["auth-user", "reset-password", ""]
 						},
 						"description": "Reset password using the reset token."
 					},
@@ -674,9 +674,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/me/",
+							"raw": "{{base_url}}/auth-user/profile/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "me", ""]
+							"path": ["auth-user", "profile", ""]
 						},
 						"description": "Get the authenticated user's basic profile."
 					},
@@ -688,9 +688,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/profile-full/",
+							"raw": "{{base_url}}/auth-user/profile-full/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "profile-full", ""]
+							"path": ["auth-user", "profile-full", ""]
 						},
 						"description": "Get comprehensive profile including:\n- User details (name, email, phone, verification status)\n- KYC status (application_id, status, mega_step, current_step, completion %)\n- App access (apps user can access with permissions)\n- Feature access (features user can access with permissions)"
 					},
@@ -711,9 +711,9 @@
 							"raw": "{\n    \"first_name\": \"John Updated\",\n    \"last_name\": \"Doe Updated\",\n    \"phone_number\": \"+9876543210\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/me/",
+							"raw": "{{base_url}}/auth-user/profile/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "me", ""]
+							"path": ["auth-user", "profile", ""]
 						},
 						"description": "Update the authenticated user's profile."
 					},
@@ -731,9 +731,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/",
+							"raw": "{{base_url}}/auth-user/users/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", ""]
+							"path": ["auth-user", "users", ""]
 						},
 						"description": "Get list of all active users (excludes soft-deleted users by default)."
 					},
@@ -745,9 +745,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/?include_deleted=true",
+							"raw": "{{base_url}}/auth-user/users/?include_deleted=true",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", ""],
+							"path": ["auth-user", "users", ""],
 							"query": [
 								{
 									"key": "include_deleted",
@@ -765,9 +765,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/?is_deleted=true",
+							"raw": "{{base_url}}/auth-user/users/?is_deleted=true",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", ""],
+							"path": ["auth-user", "users", ""],
 							"query": [
 								{
 									"key": "is_deleted",
@@ -785,9 +785,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/1/",
+							"raw": "{{base_url}}/auth-user/users/1/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "1", ""]
+							"path": ["auth-user", "users", "1", ""]
 						},
 						"description": "Get details of a specific user (only active users, not soft-deleted)."
 					},
@@ -808,9 +808,9 @@
 							"raw": "{\n    \"first_name\": \"Updated Name\",\n    \"last_name\": \"Updated Last\",\n    \"phone_number\": \"+1111111111\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/users/1/",
+							"raw": "{{base_url}}/auth-user/users/1/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "1", ""]
+							"path": ["auth-user", "users", "1", ""]
 						},
 						"description": "Update a user's information."
 					},
@@ -831,9 +831,9 @@
 							"raw": "{\n    \"user_role\": \"ADMIN\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/users/3/",
+							"raw": "{{base_url}}/auth-user/users/3/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "3", ""]
+							"path": ["auth-user", "users", "3", ""]
 						},
 						"description": "Update a user's role. Valid roles: DEVELOPER, SUPER_ADMIN, ADMIN, CLIENT, END_USER. Requires Admin+ permission."
 					},
@@ -845,9 +845,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/?search=john",
+							"raw": "{{base_url}}/auth-user/users/?search=john",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", ""],
+							"path": ["auth-user", "users", ""],
 							"query": [
 								{
 									"key": "search",
@@ -865,9 +865,9 @@
 						"method": "DELETE",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/3/",
+							"raw": "{{base_url}}/auth-user/users/3/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "3", ""]
+							"path": ["auth-user", "users", "3", ""]
 						},
 						"description": "**SOFT DELETE** - Marks user as deleted (is_deleted=True) without removing from database.\n\n- Sets is_deleted=True\n- Sets is_active=False\n- Records deleted_at timestamp\n- Invalidates all sessions\n- User can be restored later\n\n**Note:** Cannot delete your own account."
 					},
@@ -879,9 +879,9 @@
 						"method": "DELETE",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/3/hard-delete/",
+							"raw": "{{base_url}}/auth-user/users/3/hard-delete/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "3", "hard-delete", ""]
+							"path": ["auth-user", "users", "3", "hard-delete", ""]
 						},
 						"description": "**HARD DELETE** - Permanently removes user from database.\n\n⚠️ **WARNING:** This action CANNOT be undone!\n\n- Completely removes user record\n- Removes all related data (sessions, login attempts, etc.)\n- User cannot be recovered\n\n**Note:** Cannot delete your own account."
 					},
@@ -893,9 +893,9 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/3/restore/",
+							"raw": "{{base_url}}/auth-user/users/3/restore/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "3", "restore", ""]
+							"path": ["auth-user", "users", "3", "restore", ""]
 						},
 						"description": "**RESTORE** - Restores a soft-deleted user.\n\n- Sets is_deleted=False\n- Sets is_active=True\n- Clears deleted_at timestamp\n- User can login again"
 					},
@@ -907,9 +907,9 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/3/activate/",
+							"raw": "{{base_url}}/auth-user/users/3/activate/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "3", "activate", ""]
+							"path": ["auth-user", "users", "3", "activate", ""]
 						},
 						"description": "Activate a deactivated user account."
 					},
@@ -921,9 +921,9 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/users/3/deactivate/",
+							"raw": "{{base_url}}/auth-user/users/3/deactivate/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "users", "3", "deactivate", ""]
+							"path": ["auth-user", "users", "3", "deactivate", ""]
 						},
 						"description": "Deactivate a user account (different from delete - just sets is_active=False)."
 					},
@@ -941,9 +941,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/activity-logs/",
+							"raw": "{{base_url}}/auth-user/activity-logs/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "activity-logs", ""]
+							"path": ["auth-user", "activity-logs", ""]
 						},
 						"description": "Get all user activity logs. Requires Admin+ role.\n\n**Activity Types:**\n- LOGIN, LOGOUT\n- PROFILE_UPDATE\n- PASSWORD_CHANGE, PASSWORD_RESET\n- KYC_SUBMIT, KYC_APPROVED, KYC_REJECTED\n- ACCOUNT_LOCKED, ACCOUNT_UNLOCKED"
 					},
@@ -955,9 +955,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/activity-logs/?user_id=1",
+							"raw": "{{base_url}}/auth-user/activity-logs/?user_id=1",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "activity-logs", ""],
+							"path": ["auth-user", "activity-logs", ""],
 							"query": [
 								{
 									"key": "user_id",
@@ -975,9 +975,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/activity-logs/?activity_type=LOGIN",
+							"raw": "{{base_url}}/auth-user/activity-logs/?activity_type=LOGIN",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "activity-logs", ""],
+							"path": ["auth-user", "activity-logs", ""],
 							"query": [
 								{
 									"key": "activity_type",
@@ -995,9 +995,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/activity-logs/?start_date=2024-01-01&end_date=2024-12-31&limit=50",
+							"raw": "{{base_url}}/auth-user/activity-logs/?start_date=2024-01-01&end_date=2024-12-31&limit=50",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "activity-logs", ""],
+							"path": ["auth-user", "activity-logs", ""],
 							"query": [
 								{
 									"key": "start_date",
@@ -1023,9 +1023,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/my-activity/",
+							"raw": "{{base_url}}/auth-user/my-activity/",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "my-activity", ""]
+							"path": ["auth-user", "my-activity", ""]
 						},
 						"description": "Get current user's activity logs. Available to all authenticated users."
 					},
@@ -1037,9 +1037,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/auth/my-activity/?activity_type=LOGIN&limit=10",
+							"raw": "{{base_url}}/auth-user/my-activity/?activity_type=LOGIN&limit=10",
 							"host": ["{{base_url}}"],
-							"path": ["auth", "my-activity", ""],
+							"path": ["auth-user", "my-activity", ""],
 							"query": [
 								{
 									"key": "activity_type",
@@ -2149,9 +2149,9 @@
 									"raw": "{\n    \"otp_type\": \"EMAIL\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/kyc/send-otp/",
+									"raw": "{{base_url}}/auth-user/send-otp/",
 									"host": ["{{base_url}}"],
-									"path": ["kyc", "send-otp", ""]
+									"path": ["auth-user", "send-otp", ""]
 								},
 								"description": "Send OTP to user's email for verification."
 							},
@@ -2172,9 +2172,9 @@
 									"raw": "{\n    \"otp_type\": \"PHONE\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/kyc/send-otp/",
+									"raw": "{{base_url}}/auth-user/send-otp/",
 									"host": ["{{base_url}}"],
-									"path": ["kyc", "send-otp", ""]
+									"path": ["auth-user", "send-otp", ""]
 								},
 								"description": "Send OTP to user's phone for verification."
 							},
@@ -2195,9 +2195,9 @@
 									"raw": "{\n    \"otp_code\": \"123456\",\n    \"otp_type\": \"EMAIL\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/kyc/verify-otp/",
+									"raw": "{{base_url}}/auth-user/verify-otp/",
 									"host": ["{{base_url}}"],
-									"path": ["kyc", "verify-otp", ""]
+									"path": ["auth-user", "verify-otp", ""]
 								},
 								"description": "Verify the OTP received via email or phone."
 							},
@@ -2218,9 +2218,9 @@
 									"raw": "{\n    \"otp_type\": \"EMAIL\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/kyc/resend-otp/",
+									"raw": "{{base_url}}/auth-user/resend-otp/",
 									"host": ["{{base_url}}"],
-									"path": ["kyc", "resend-otp", ""]
+									"path": ["auth-user", "resend-otp", ""]
 								},
 								"description": "Resend OTP (invalidates previous OTPs)."
 							},
@@ -2496,7 +2496,21 @@
 					"name": "Verification Images",
 					"item": [
 						{
-							"name": "Upload Verification Images",
+							"name": "Get Verification Status",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", ""]
+								},
+								"description": "Get current verification images status and URLs."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Selfie",
 							"request": {
 								"method": "POST",
 								"header": [],
@@ -2507,7 +2521,26 @@
 											"key": "selfie",
 											"type": "file",
 											"description": "Selfie photo (JPG/PNG, max 5MB)"
-										},
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/selfie/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", "selfie", ""]
+								},
+								"description": "Upload selfie photo for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Office Photos",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
 										{
 											"key": "office_sitting_photo",
 											"type": "file",
@@ -2517,7 +2550,26 @@
 											"key": "office_door_photo",
 											"type": "file",
 											"description": "Photo at office door with name board (JPG/PNG, max 5MB)"
-										},
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/office/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", "office", ""]
+								},
+								"description": "Upload office photos for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Address Proof",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
 										{
 											"key": "address_proof",
 											"type": "file",
@@ -2532,25 +2584,11 @@
 									]
 								},
 								"url": {
-									"raw": "{{base_url}}/kyc/verification-images/",
+									"raw": "{{base_url}}/kyc/verification/address-proof/",
 									"host": ["{{base_url}}"],
-									"path": ["kyc", "verification-images", ""]
+									"path": ["kyc", "verification", "address-proof", ""]
 								},
-								"description": "Upload verification images including selfie, office photos, and address proof."
-							},
-							"response": []
-						},
-						{
-							"name": "Get Verification Images",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{base_url}}/kyc/verification-images/",
-									"host": ["{{base_url}}"],
-									"path": ["kyc", "verification-images", ""]
-								},
-								"description": "Get current verification images status and URLs."
+								"description": "Upload address proof for verification."
 							},
 							"response": []
 						}

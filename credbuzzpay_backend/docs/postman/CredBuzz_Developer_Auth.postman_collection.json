@@ -1,0 +1,641 @@
+{
+	"info": {
+		"_postman_id": "credbuzz-dev-auth",
+		"name": "CredBuzz Developer Auth",
+		"description": "Quick authentication collection for Developer testing.\n\n## Quick Start\n1. Run 'Developer Login' - tokens auto-saved\n2. All other requests use saved token automatically\n\n## Test Accounts\n- **Developer**: dev@credbuzz.com / Developer@123\n- **Super Admin**: superadmin@credbuzz.com / SuperAdmin@123\n\n## Features\n- Auto-saves tokens on login\n- Token refresh when expired\n- Profile & access info",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_code",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_role",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "🔐 Login",
+			"item": [
+				{
+					"name": "Developer Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    // Save tokens",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    ",
+									"    // Save user info",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    pm.collectionVariables.set('user_role', jsonData.data.user.user_role);",
+									"    ",
+									"    console.log('✅ Developer Login Successful!');",
+									"    console.log('👤 User:', jsonData.data.user.email);",
+									"    console.log('🔑 User Code:', jsonData.data.user.user_code);",
+									"    console.log('👑 Role:', jsonData.data.user.user_role);",
+									"    console.log('📱 Apps:', jsonData.data.app_access ? jsonData.data.app_access.length : 0);",
+									"    console.log('⚡ Features:', jsonData.data.feature_access ? jsonData.data.feature_access.length : 0);",
+									"    ",
+									"    pm.test('Login successful', function() {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"        pm.expect(jsonData.data.user.user_role).to.equal('DEVELOPER');",
+									"    });",
+									"} else {",
+									"    console.log('❌ Login Failed:', jsonData.message);",
+									"    pm.test('Login failed', function() {",
+									"        pm.expect.fail(jsonData.message);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"dev@credbuzz.com\",\n    \"password\": \"Developer@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "Login as Developer. Tokens are automatically saved.\n\n**Credentials:**\n- Email: dev@credbuzz.com\n- Password: Developer@123"
+					},
+					"response": []
+				},
+				{
+					"name": "Super Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    pm.collectionVariables.set('user_role', jsonData.data.user.user_role);",
+									"    ",
+									"    console.log('✅ Super Admin Login Successful!');",
+									"    console.log('👤 User:', jsonData.data.user.email);",
+									"    console.log('🔑 User Code:', jsonData.data.user.user_code);",
+									"    console.log('👑 Role:', jsonData.data.user.user_role);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"superadmin@credbuzz.com\",\n    \"password\": \"SuperAdmin@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "Login as Super Admin.\n\n**Credentials:**\n- Email: superadmin@credbuzz.com\n- Password: SuperAdmin@123"
+					},
+					"response": []
+				},
+				{
+					"name": "Custom Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    pm.collectionVariables.set('user_role', jsonData.data.user.user_role);",
+									"    ",
+									"    console.log('✅ Login Successful!');",
+									"    console.log('👤 User:', jsonData.data.user.email);",
+									"    console.log('👑 Role:', jsonData.data.user.user_role);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"your_email@example.com\",\n    \"password\": \"your_password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "Login with custom credentials.\n\n**identifier can be:**\n- Email (contains @)\n- Phone (+1234567890)\n- User Code (6 chars)\n- Username"
+					},
+					"response": []
+				}
+			],
+			"description": "Login endpoints - tokens auto-saved"
+		},
+		{
+			"name": "👤 Profile",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success) {",
+									"    console.log('👤 Profile Info:');",
+									"    console.log('   Name:', jsonData.data.first_name, jsonData.data.last_name);",
+									"    console.log('   Email:', jsonData.data.email);",
+									"    console.log('   Role:', jsonData.data.user_role);",
+									"    console.log('   Code:', jsonData.data.user_code);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile", ""]
+						},
+						"description": "Get current user's basic profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Full Profile (with Access)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success) {",
+									"    console.log('👤 Full Profile:');",
+									"    console.log('   Name:', jsonData.data.user.first_name, jsonData.data.user.last_name);",
+									"    console.log('   Role:', jsonData.data.user.user_role);",
+									"    console.log('   KYC Status:', jsonData.data.kyc_status ? jsonData.data.kyc_status.status : 'N/A');",
+									"    console.log('   Apps:', jsonData.data.app_access ? jsonData.data.app_access.length : 0);",
+									"    console.log('   Features:', jsonData.data.feature_access ? jsonData.data.feature_access.length : 0);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile-full/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile-full", ""]
+						},
+						"description": "Get comprehensive profile with KYC status and access info."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"Name\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile", ""]
+						},
+						"description": "Update current user's profile."
+					},
+					"response": []
+				}
+			],
+			"description": "Profile management"
+		},
+		{
+			"name": "🔑 Token Management",
+			"item": [
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.access_token) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.access_token);",
+									"    console.log('✅ Token refreshed successfully!');",
+									"} else {",
+									"    console.log('❌ Token refresh failed. Please login again.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/refresh-token/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "refresh-token", ""]
+						},
+						"description": "Get new access token using refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success) {",
+									"    pm.collectionVariables.set('access_token', '');",
+									"    pm.collectionVariables.set('refresh_token', '');",
+									"    console.log('✅ Logged out successfully!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "logout", ""]
+						},
+						"description": "Logout and invalidate tokens."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"Developer@123\",\n    \"new_password\": \"NewDeveloper@123\",\n    \"confirm_password\": \"NewDeveloper@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/change-password/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "change-password", ""]
+						},
+						"description": "Change current user's password."
+					},
+					"response": []
+				}
+			],
+			"description": "Token and session management"
+		},
+		{
+			"name": "🔍 Permissions",
+			"item": [
+				{
+					"name": "Get My Permissions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"if (jsonData.success) {",
+									"    console.log('🔐 Your Permissions:');",
+									"    console.log('   Role:', jsonData.data.role);",
+									"    console.log('   Apps:', jsonData.data.apps ? jsonData.data.apps.length : 0);",
+									"    console.log('   Features:', jsonData.data.features ? jsonData.data.features.length : 0);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/my-permissions/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "my-permissions", ""]
+						},
+						"description": "Get all permissions for current user."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Permission",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/check-permission/?app_code=USER_MGMT&permission=view",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "check-permission", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								},
+								{
+									"key": "permission",
+									"value": "view"
+								}
+							]
+						},
+						"description": "Check if you have specific permission."
+					},
+					"response": []
+				},
+				{
+					"name": "List All Roles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""]
+						},
+						"description": "List all available roles."
+					},
+					"response": []
+				},
+				{
+					"name": "List All Apps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""]
+						},
+						"description": "List all apps/modules."
+					},
+					"response": []
+				},
+				{
+					"name": "List All Features",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""]
+						},
+						"description": "List all features."
+					},
+					"response": []
+				}
+			],
+			"description": "RBAC and permissions"
+		},
+		{
+			"name": "👥 User Management",
+			"item": [
+				{
+					"name": "List All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", ""]
+						},
+						"description": "List all users (admin only)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/1/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "1", ""]
+						},
+						"description": "Get specific user details."
+					},
+					"response": []
+				},
+				{
+					"name": "My Activity Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/my-activity/?limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "my-activity", ""],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get your recent activity logs."
+					},
+					"response": []
+				},
+				{
+					"name": "All Activity Logs (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/activity-logs/?limit=20",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "activity-logs", ""],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Get all user activity logs (admin only)."
+					},
+					"response": []
+				}
+			],
+			"description": "User management (admin)"
+		},
+		{
+			"name": "🏥 Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health/",
+							"host": ["{{base_url}}"],
+							"path": ["health", ""]
+						},
+						"description": "Basic health check (no auth required)."
+					},
+					"response": []
+				},
+				{
+					"name": "Detailed Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health/detailed/",
+							"host": ["{{base_url}}"],
+							"path": ["health", "detailed", ""]
+						},
+						"description": "Detailed health check with DB status."
+					},
+					"response": []
+				}
+			],
+			"description": "Server health endpoints"
+		}
+	]
+}
