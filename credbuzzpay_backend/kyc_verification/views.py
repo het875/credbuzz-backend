@@ -67,7 +67,7 @@ class OTPSendView(APIView):
     """
     Send OTP for email or phone verification.
     
-    POST /api/auth/send-otp/
+    POST /api/auth-user/send-otp/
     {
         "otp_type": "EMAIL" | "PHONE",
         "email": "user@example.com",  // Required for EMAIL
@@ -77,6 +77,9 @@ class OTPSendView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
+        from users_auth.email_service import send_otp_email
+        from django.conf import settings
+        
         serializer = OTPSendSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -90,9 +93,13 @@ class OTPSendView(APIView):
             is_verified=False
         ).update(expires_at=timezone.now())
         
-        # Generate new OTP
-        otp_code = generate_otp()
-        expires_at = timezone.now() + timedelta(minutes=10)
+        # Generate new OTP using configured length
+        otp_length = getattr(settings, 'OTP_LENGTH', 6)
+        otp_code = generate_otp(length=otp_length)
+        
+        # Use configured expiry time
+        otp_expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+        expires_at = timezone.now() + timedelta(minutes=otp_expiry)
         
         otp = OTPVerification.objects.create(
             user=user,
@@ -103,20 +110,32 @@ class OTPSendView(APIView):
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
-        # TODO: Send actual OTP via email/SMS service
-        # For development, we'll return the OTP in response
-        # In production, this should be removed
+        # Send OTP via email if type is EMAIL
+        email_sent = False
+        if otp_type == OTPType.EMAIL:
+            user_email = serializer.validated_data.get('email') or user.email
+            user_name = user.first_name or user.email.split('@')[0]
+            email_sent = send_otp_email(
+                email=user_email,
+                otp_code=otp_code,
+                user_name=user_name
+            )
         
         response_data = {
             'success': True,
             'message': f'OTP sent successfully to your {otp_type.lower()}.',
             'otp_id': str(otp.id),
             'expires_at': otp.expires_at.isoformat(),
-            'expires_in_seconds': 600,
+            'expires_in_seconds': otp_expiry * 60,
         }
         
-        # Development only - remove in production
-        if hasattr(request, 'is_test') or True:  # TODO: Remove True in production
+        # Add email delivery status
+        if otp_type == OTPType.EMAIL:
+            response_data['email_sent'] = email_sent
+        
+        # Development only - return OTP in response for testing
+        # Remove this in production by setting DEBUG=False
+        if settings.DEBUG:
             response_data['otp_code_dev'] = otp_code
         
         return Response(response_data, status=status.HTTP_200_OK)
@@ -126,7 +145,7 @@ class OTPVerifyView(APIView):
     """
     Verify OTP code.
     
-    POST /api/auth/verify-otp/
+    POST /api/auth-user/verify-otp/
     {
         "otp_type": "EMAIL" | "PHONE",
         "otp_code": "123456"
@@ -187,7 +206,7 @@ class OTPResendView(APIView):
     """
     Resend OTP for email or phone verification.
     
-    POST /api/auth/resend-otp/
+    POST /api/auth-user/resend-otp/
     {
         "otp_type": "EMAIL" | "PHONE"
     }

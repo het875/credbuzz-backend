@@ -317,7 +317,7 @@ class AuthAPITests(APITestCase):
             'password': 'Test@1234',
             'confirm_password': 'Test@1234',
         }
-        response = self.client.post('/api/auth/register/', data, format='json')
+        response = self.client.post('/api/auth-user/register/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(response.data['success'])
@@ -343,7 +343,7 @@ class AuthAPITests(APITestCase):
             'password': 'Test@1234',
             'confirm_password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/register/', data, format='json')
+        response = self.client.post('/api/auth-user/register/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data['success'])
@@ -359,7 +359,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'test@example.com',
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -378,7 +378,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'testuser',
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -394,7 +394,7 @@ class AuthAPITests(APITestCase):
             'identifier': user.user_code,
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -410,7 +410,7 @@ class AuthAPITests(APITestCase):
             'identifier': '1234567890',
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -426,7 +426,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'test@example.com',
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('app_access', response.data['data'])
@@ -447,7 +447,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'enduser@example.com',
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         # Should fail because email and phone not verified
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -466,7 +466,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'enduser@example.com',
             'password': 'Test@1234'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -481,7 +481,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'test@example.com',
             'password': 'wrongpassword'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertFalse(response.data['success'])
@@ -499,14 +499,14 @@ class AuthAPITests(APITestCase):
                 'identifier': 'test@example.com',
                 'password': 'wrongpassword'
             }
-            self.client.post('/api/auth/login/', data, format='json')
+            self.client.post('/api/auth-user/login/', data, format='json')
         
         # 6th attempt should be locked out
         data = {
             'identifier': 'test@example.com',
             'password': 'wrongpassword'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertFalse(response.data['success'])
@@ -518,7 +518,7 @@ class AuthAPITests(APITestCase):
             'identifier': 'nonexistent@example.com',
             'password': 'wrongpassword'
         }
-        response = self.client.post('/api/auth/login/', data, format='json')
+        response = self.client.post('/api/auth-user/login/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertFalse(response.data['success'])
@@ -539,14 +539,14 @@ class AuthAPITests(APITestCase):
         )
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
-        response = self.client.get('/api/auth/profile/')
+        response = self.client.get('/api/auth-user/profile/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['email'], 'test@example.com')
     
     def test_get_profile_unauthenticated(self):
         """Test getting profile without authentication"""
-        response = self.client.get('/api/auth/profile/')
+        response = self.client.get('/api/auth-user/profile/')
         
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
     
@@ -569,7 +569,7 @@ class AuthAPITests(APITestCase):
             'first_name': 'Updated',
             'last_name': 'Name'
         }
-        response = self.client.put('/api/auth/profile/', data, format='json')
+        response = self.client.put('/api/auth-user/profile/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['first_name'], 'Updated')
@@ -581,7 +581,7 @@ class AuthAPITests(APITestCase):
         user.save()
         
         data = {'email': 'test@example.com'}
-        response = self.client.post('/api/auth/forgot-password/', data, format='json')
+        response = self.client.post('/api/auth-user/forgot-password/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -599,7 +599,7 @@ class AuthAPITests(APITestCase):
             'new_password': 'NewPass@1234',
             'confirm_password': 'NewPass@1234'
         }
-        response = self.client.post('/api/auth/reset-password/', data, format='json')
+        response = self.client.post('/api/auth-user/reset-password/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -628,7 +628,7 @@ class AuthAPITests(APITestCase):
             'new_password': 'NewPass@1234',
             'confirm_password': 'NewPass@1234'
         }
-        response = self.client.post('/api/auth/change-password/', data, format='json')
+        response = self.client.post('/api/auth-user/change-password/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -648,7 +648,7 @@ class AuthAPITests(APITestCase):
         )
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
-        response = self.client.get('/api/auth/users/')
+        response = self.client.get('/api/auth-user/users/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -673,7 +673,7 @@ class AuthAPITests(APITestCase):
         )
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access_token"]}')
-        response = self.client.delete(f'/api/auth/users/{user2.id}/')
+        response = self.client.delete(f'/api/auth-user/users/{user2.id}/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -698,7 +698,7 @@ class AuthAPITests(APITestCase):
         )
         
         data = {'refresh_token': tokens['refresh_token']}
-        response = self.client.post('/api/auth/refresh-token/', data, format='json')
+        response = self.client.post('/api/auth-user/refresh-token/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['success'])
@@ -724,7 +724,7 @@ class AuthAPITests(APITestCase):
         session.save()
         
         data = {'refresh_token': tokens['refresh_token']}
-        response = self.client.post('/api/auth/refresh-token/', data, format='json')
+        response = self.client.post('/api/auth-user/refresh-token/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 

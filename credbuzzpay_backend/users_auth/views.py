@@ -34,7 +34,7 @@ class RegisterView(APIView):
     Step 2: After registration, OTPs are sent to email and phone for verification.
     Step 3: User must verify both OTPs before they can login.
     
-    POST /api/auth/register/
+    POST /api/auth-user/register/
     
     Request body:
     {
@@ -56,6 +56,9 @@ class RegisterView(APIView):
         return [RegistrationRateThrottle()]
     
     def post(self, request):
+        from django.conf import settings
+        from .email_service import send_otp_email
+        
         serializer = UserRegistrationSerializer(data=request.data)
         
         if serializer.is_valid():
@@ -65,49 +68,66 @@ class RegisterView(APIView):
             from kyc_verification.models import OTPVerification, OTPType
             import random
             
-            # Generate and send OTPs for both email and phone
-            otp_data = {
-                'email_otp': None,
-                'phone_otp': None,
-            }
+            # Get OTP settings
+            otp_length = getattr(settings, 'OTP_LENGTH', 6)
+            otp_expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+            
+            # Track email delivery status
+            email_sent = False
             
             # Generate Email OTP
-            email_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            email_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
             email_otp = OTPVerification.objects.create(
                 user=user,
                 otp_type=OTPType.EMAIL,
                 otp_code=email_otp_code,
-                expires_at=timezone.now() + timezone.timedelta(minutes=10),
+                expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
                 ip_address=get_client_ip(request),
                 user_agent=get_user_agent(request)
             )
-            otp_data['email_otp'] = email_otp_code  # In production, send via email service
             
-            # Generate Phone OTP
-            phone_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            # Send OTP via email
+            user_name = user.first_name or user.email.split('@')[0]
+            email_sent = send_otp_email(
+                email=user.email,
+                otp_code=email_otp_code,
+                user_name=user_name
+            )
+            
+            # Generate Phone OTP (SMS not implemented yet)
+            phone_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
             phone_otp = OTPVerification.objects.create(
                 user=user,
                 otp_type=OTPType.PHONE,
                 otp_code=phone_otp_code,
-                expires_at=timezone.now() + timezone.timedelta(minutes=10),
+                expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
                 ip_address=get_client_ip(request),
                 user_agent=get_user_agent(request)
             )
-            otp_data['phone_otp'] = phone_otp_code  # In production, send via SMS service
+            # TODO: Integrate SMS service for phone OTP
             
-            return Response({
+            response_data = {
                 'success': True,
-                'message': 'User registered successfully. Please verify your email and phone number with OTP.',
+                'message': 'User registered successfully. Please verify your email with the OTP sent.',
                 'data': {
                     'user': UserSerializer(user).data,
                     'verification_required': {
                         'email': True,
                         'phone': True,
                     },
-                    # For testing purposes only - remove in production
-                    'test_otps': otp_data
+                    'email_sent': email_sent,
+                    'expires_in_minutes': otp_expiry,
                 }
-            }, status=status.HTTP_201_CREATED)
+            }
+            
+            # Include OTP in response only in DEBUG mode for testing
+            if settings.DEBUG:
+                response_data['data']['test_otps'] = {
+                    'email_otp': email_otp_code,
+                    'phone_otp': phone_otp_code,
+                }
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
         
         return Response({
             'success': False,
@@ -127,7 +147,7 @@ class LoginView(APIView):
     - Session inactivity timeout (30 minutes like bank apps)
     - Rate limiting: 10 login attempts per minute per IP
     
-    POST /api/auth/login/
+    POST /api/auth-user/login/
     Request body: {"identifier": "email/username/user_code/phone", "password": "..."}
     """
     permission_classes = [AllowAny]
@@ -320,7 +340,7 @@ class LoginView(APIView):
 class LogoutView(APIView):
     """
     API endpoint for user logout
-    POST /api/auth/logout/
+    POST /api/auth-user/logout/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -350,7 +370,7 @@ class LogoutView(APIView):
 class ForgotPasswordView(APIView):
     """
     API endpoint for forgot password request
-    POST /api/auth/forgot-password/
+    POST /api/auth-user/forgot-password/
     """
     permission_classes = [AllowAny]
     
@@ -395,7 +415,7 @@ class ForgotPasswordView(APIView):
 class ResetPasswordView(APIView):
     """
     API endpoint for password reset
-    POST /api/auth/reset-password/
+    POST /api/auth-user/reset-password/
     """
     permission_classes = [AllowAny]
     
@@ -433,7 +453,7 @@ class ResetPasswordView(APIView):
 class ChangePasswordView(APIView):
     """
     API endpoint for changing password (authenticated users)
-    POST /api/auth/change-password/
+    POST /api/auth-user/change-password/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -478,7 +498,7 @@ class ChangePasswordView(APIView):
 class RefreshTokenView(APIView):
     """
     API endpoint for refreshing access token
-    POST /api/auth/refresh-token/
+    POST /api/auth-user/refresh-token/
     """
     permission_classes = [AllowAny]
     
@@ -515,8 +535,8 @@ class RefreshTokenView(APIView):
 class UserProfileView(APIView):
     """
     API endpoint for getting and updating current user profile
-    GET /api/auth/profile/
-    PUT /api/auth/profile/
+    GET /api/auth-user/profile/
+    PUT /api/auth-user/profile/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -557,7 +577,7 @@ class UserProfileView(APIView):
 class UserListView(APIView):
     """
     API endpoint for listing all users (admin only in production)
-    GET /api/auth/users/
+    GET /api/auth-user/users/
     
     Query params:
     - is_active: Filter by active status (true/false)
@@ -612,9 +632,9 @@ class UserListView(APIView):
 class UserDetailView(APIView):
     """
     API endpoint for getting, updating, and deleting a specific user
-    GET /api/auth/users/<id>/
-    PUT /api/auth/users/<id>/
-    DELETE /api/auth/users/<id>/ - Soft delete (sets is_deleted=True)
+    GET /api/auth-user/users/<id>/
+    PUT /api/auth-user/users/<id>/
+    DELETE /api/auth-user/users/<id>/ - Soft delete (sets is_deleted=True)
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -715,7 +735,7 @@ class UserDetailView(APIView):
 class UserHardDeleteView(APIView):
     """
     API endpoint for permanently deleting a user from database
-    DELETE /api/auth/users/<id>/hard-delete/
+    DELETE /api/auth-user/users/<id>/hard-delete/
     
     WARNING: This permanently removes the user and all related data.
     This action cannot be undone.
@@ -764,7 +784,7 @@ class UserHardDeleteView(APIView):
 class UserRestoreView(APIView):
     """
     API endpoint for restoring a soft-deleted user
-    POST /api/auth/users/<id>/restore/
+    POST /api/auth-user/users/<id>/restore/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -795,8 +815,8 @@ class UserRestoreView(APIView):
 class UserActivateView(APIView):
     """
     API endpoint for activating/deactivating a user
-    POST /api/auth/users/<id>/activate/
-    POST /api/auth/users/<id>/deactivate/
+    POST /api/auth-user/users/<id>/activate/
+    POST /api/auth-user/users/<id>/deactivate/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -843,7 +863,7 @@ class VerifyRegistrationOTPView(APIView):
     API endpoint for verifying OTP during registration.
     User must verify both email and phone OTPs after registration.
     
-    POST /api/auth/verify-registration-otp/
+    POST /api/auth-user/verify-registration-otp/
     
     Request body:
     {
@@ -941,7 +961,7 @@ class ResendRegistrationOTPView(APIView):
     """
     API endpoint for resending OTP during registration.
     
-    POST /api/auth/resend-registration-otp/
+    POST /api/auth-user/resend-registration-otp/
     
     Request body:
     {
@@ -953,6 +973,9 @@ class ResendRegistrationOTPView(APIView):
     
     def post(self, request):
         import random
+        from django.conf import settings
+        from .email_service import send_otp_email
+        
         email = request.data.get('email')
         otp_type = request.data.get('otp_type')
         
@@ -987,27 +1010,55 @@ class ResendRegistrationOTPView(APIView):
                 'message': 'Phone is already verified.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        # Get OTP settings
+        otp_length = getattr(settings, 'OTP_LENGTH', 6)
+        otp_expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+        
+        # Invalidate existing OTPs
+        OTPVerification.objects.filter(
+            user=user,
+            otp_type=otp_type.upper(),
+            is_verified=False
+        ).update(expires_at=timezone.now())
+        
         # Generate new OTP
-        otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
         
         otp = OTPVerification.objects.create(
             user=user,
             otp_type=otp_type.upper(),
             otp_code=otp_code,
-            expires_at=timezone.now() + timezone.timedelta(minutes=10),
+            expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
             ip_address=get_client_ip(request),
             user_agent=get_user_agent(request)
         )
         
-        return Response({
+        # Send OTP via email if type is EMAIL
+        email_sent = False
+        if otp_type.upper() == 'EMAIL':
+            user_name = user.first_name or user.email.split('@')[0]
+            email_sent = send_otp_email(
+                email=user.email,
+                otp_code=otp_code,
+                user_name=user_name
+            )
+        
+        response_data = {
             'success': True,
             'message': f'OTP sent to your {otp_type.lower()}.',
             'data': {
-                # For testing only - remove in production
-                'test_otp': otp_code,
-                'expires_in_minutes': 10,
+                'expires_in_minutes': otp_expiry,
             }
-        }, status=status.HTTP_200_OK)
+        }
+        
+        if otp_type.upper() == 'EMAIL':
+            response_data['data']['email_sent'] = email_sent
+        
+        # Include OTP in response only in DEBUG mode for testing
+        if settings.DEBUG:
+            response_data['data']['test_otp'] = otp_code
+        
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 # =============================================================================
@@ -1022,10 +1073,10 @@ class UserActivityLogListView(APIView):
     Admin can view logs for users below their level.
     Users can view their own logs.
     
-    GET /api/auth/activity-logs/
-    GET /api/auth/activity-logs/?user_id=123
-    GET /api/auth/activity-logs/?activity_type=LOGIN
-    GET /api/auth/activity-logs/?start_date=2024-01-01&end_date=2024-12-31
+    GET /api/auth-user/activity-logs/
+    GET /api/auth-user/activity-logs/?user_id=123
+    GET /api/auth-user/activity-logs/?activity_type=LOGIN
+    GET /api/auth-user/activity-logs/?start_date=2024-01-01&end_date=2024-12-31
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -1087,7 +1138,7 @@ class MyActivityLogView(APIView):
     """
     API endpoint to get current user's activity logs.
     
-    GET /api/auth/my-activity/
+    GET /api/auth-user/my-activity/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -1130,10 +1181,10 @@ class UserProfileWithAccessView(APIView):
     - App/Feature access
     - Role information
     
-    GET /api/auth/profile-full/
+    GET /api/auth-user/profile-full/
     
     Can also update profile:
-    PATCH /api/auth/profile-full/
+    PATCH /api/auth-user/profile-full/
     """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]

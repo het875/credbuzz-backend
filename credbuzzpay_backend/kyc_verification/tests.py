@@ -73,7 +73,7 @@ def create_test_image():
 
 def get_auth_header(client, user):
     """Get authentication header for user."""
-    response = client.post('/api/auth/login/', {
+    response = client.post('/api/auth-user/login/', {
         'identifier': user.email,
         'password': 'TestPass@123'
     }, format='json')
@@ -317,7 +317,7 @@ class OTPAPITests(APITestCase):
     def test_send_email_otp(self):
         """Test sending email OTP."""
         response = self.client.post(
-            '/api/auth/send-otp/',
+            '/api/auth-user/send-otp/',
             {'otp_type': 'EMAIL', 'email': self.user.email},
             format='json',
             **self.auth_header
@@ -342,7 +342,7 @@ class OTPAPITests(APITestCase):
         )
         
         response = self.client.post(
-            '/api/auth/verify-otp/',
+            '/api/auth-user/verify-otp/',
             {'otp_type': 'EMAIL', 'otp_code': '123456'},
             format='json',
             **self.auth_header
@@ -362,7 +362,7 @@ class OTPAPITests(APITestCase):
         )
         
         response = self.client.post(
-            '/api/auth/verify-otp/',
+            '/api/auth-user/verify-otp/',
             {'otp_type': 'EMAIL', 'otp_code': '000000'},
             format='json',
             **self.auth_header

@@ -4,9 +4,9 @@ KYC Verification URL Configuration
 URL patterns for KYC/Onboarding API endpoints.
 
 OTP Endpoints (in users_auth):
-    /api/auth/send-otp/          - Send OTP
-    /api/auth/verify-otp/        - Verify OTP
-    /api/auth/resend-otp/        - Resend OTP
+    /api/auth-user/send-otp/          - Send OTP
+    /api/auth-user/verify-otp/        - Verify OTP
+    /api/auth-user/resend-otp/        - Resend OTP
 
 KYC User Endpoints:
     /api/kyc/status/             - Get KYC status

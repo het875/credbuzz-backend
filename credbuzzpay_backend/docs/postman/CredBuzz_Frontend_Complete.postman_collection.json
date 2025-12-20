@@ -1,0 +1,705 @@
+{
+  "info": {
+    "name": "CredBuzz Frontend Integration - Complete API",
+    "description": "Complete API collection for frontend developers. Organized by flow: Registration → Login → KYC → Dashboard → User Management → Bill Pay",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://127.0.0.1:8000/api"},
+    {"key": "access_token", "value": ""},
+    {"key": "refresh_token", "value": ""},
+    {"key": "user_id", "value": "1"}
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{"key": "token", "value": "{{access_token}}", "type": "string"}]
+  },
+  "item": [
+    {
+      "name": "01. Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {"method": "GET", "url": "{{base_url}}/health/", "auth": {"type": "noauth"}},
+          "description": "Check if API is healthy. No auth required."
+        },
+        {
+          "name": "Detailed Health Check",
+          "request": {"method": "GET", "url": "{{base_url}}/health/detailed/", "auth": {"type": "noauth"}}
+        }
+      ]
+    },
+    {
+      "name": "02. User Registration & OTP",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"first_name\": \"John\",\n    \"middle_name\": \"\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"SecurePass@123\",\n    \"confirm_password\": \"SecurePass@123\"\n}"},
+            "url": "{{base_url}}/auth-user/register/",
+            "auth": {"type": "noauth"}
+          },
+          "description": "Register new user. OTP sent to email automatically."
+        },
+        {
+          "name": "Verify Registration OTP",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"otp_code\": \"123456\",\n    \"otp_type\": \"EMAIL\"\n}"},
+            "url": "{{base_url}}/auth-user/verify-registration-otp/",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Resend Registration OTP",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"otp_type\": \"EMAIL\"\n}"},
+            "url": "{{base_url}}/auth-user/resend-registration-otp/",
+            "auth": {"type": "noauth"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Login & Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [{"listen": "test", "script": {"exec": ["var jsonData = pm.response.json();", "if (jsonData.data && jsonData.data.tokens) {", "    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);", "    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);", "    console.log('Tokens saved!');", "}"], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"identifier\": \"john.doe@example.com\",\n    \"password\": \"SecurePass@123\"\n}"},
+            "url": "{{base_url}}/auth-user/login/",
+            "auth": {"type": "noauth"}
+          },
+          "description": "Login with email/phone. Response includes tokens, KYC status, and access permissions."
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"},
+            "url": "{{base_url}}/auth-user/refresh-token/",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {"method": "POST", "url": "{{base_url}}/auth-user/logout/"}
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"email\": \"john.doe@example.com\"\n}"},
+            "url": "{{base_url}}/auth-user/forgot-password/",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"otp\": \"123456\",\n    \"new_password\": \"NewSecurePass@123\",\n    \"confirm_password\": \"NewSecurePass@123\"\n}"},
+            "url": "{{base_url}}/auth-user/reset-password/",
+            "auth": {"type": "noauth"}
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"current_password\": \"SecurePass@123\",\n    \"new_password\": \"NewSecurePass@123\",\n    \"confirm_password\": \"NewSecurePass@123\"\n}"},
+            "url": "{{base_url}}/auth-user/change-password/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. User Profile & Dashboard",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/profile/"}
+        },
+        {
+          "name": "Get Profile with Full Access Info",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/profile-full/"},
+          "description": "Returns profile with app_access and feature_access arrays"
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\"\n}"},
+            "url": "{{base_url}}/auth-user/profile/"
+          }
+        },
+        {
+          "name": "Get My Activity Logs",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/my-activity/"}
+        },
+        {
+          "name": "Get My Permissions",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/my-permissions/"},
+          "description": "Returns all apps and features you have access to"
+        },
+        {
+          "name": "Check Permission",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"app_code\": \"BILL_PAY\",\n    \"feature_code\": \"PAY_BILLS\"\n}"},
+            "url": "{{base_url}}/rbac/check-permission/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. KYC Process",
+      "item": [
+        {
+          "name": "Get KYC Status",
+          "request": {"method": "GET", "url": "{{base_url}}/kyc/status/"},
+          "description": "Check current KYC status, step, and completion percentage"
+        },
+        {
+          "name": "Start KYC",
+          "request": {"method": "POST", "url": "{{base_url}}/kyc/start/"}
+        },
+        {
+          "name": "Get Full KYC Details",
+          "request": {"method": "GET", "url": "{{base_url}}/kyc/detail/"}
+        },
+        {
+          "name": "Submit Aadhaar Details",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"aadhaar_number\": \"123456789012\",\n    \"aadhaar_name\": \"John Doe\",\n    \"aadhaar_dob\": \"1990-01-15\",\n    \"aadhaar_address\": \"123 Main Street, Mumbai 400001\"\n}"},
+            "url": "{{base_url}}/kyc/identity/aadhaar/"
+          }
+        },
+        {
+          "name": "Upload Aadhaar Images",
+          "request": {
+            "method": "POST",
+            "body": {"mode": "formdata", "formdata": [{"key": "aadhaar_front_image", "type": "file", "src": ""}, {"key": "aadhaar_back_image", "type": "file", "src": ""}]},
+            "url": "{{base_url}}/kyc/identity/aadhaar/upload/"
+          }
+        },
+        {
+          "name": "Submit PAN Details",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"pan_number\": \"ABCDE1234F\",\n    \"pan_name\": \"JOHN DOE\",\n    \"pan_dob\": \"1990-01-15\"\n}"},
+            "url": "{{base_url}}/kyc/identity/pan/"
+          }
+        },
+        {
+          "name": "Upload PAN Image",
+          "request": {
+            "method": "POST",
+            "body": {"mode": "formdata", "formdata": [{"key": "pan_image", "type": "file", "src": ""}]},
+            "url": "{{base_url}}/kyc/identity/pan/upload/"
+          }
+        },
+        {
+          "name": "Submit Business Details",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"business_name\": \"John Electronics\",\n    \"business_type\": \"Retail\",\n    \"business_phone\": \"9876543210\",\n    \"business_email\": \"business@example.com\",\n    \"address_line_1\": \"456 Shop Street\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400001\"\n}"},
+            "url": "{{base_url}}/kyc/business/"
+          }
+        },
+        {
+          "name": "Upload Selfie",
+          "request": {
+            "method": "POST",
+            "body": {"mode": "formdata", "formdata": [{"key": "selfie", "type": "file", "src": ""}]},
+            "url": "{{base_url}}/kyc/verification/selfie/"
+          }
+        },
+        {
+          "name": "Upload Office Photos",
+          "request": {
+            "method": "POST",
+            "body": {"mode": "formdata", "formdata": [{"key": "inside_photo", "type": "file", "src": ""}, {"key": "outside_photo", "type": "file", "src": ""}]},
+            "url": "{{base_url}}/kyc/verification/office/"
+          }
+        },
+        {
+          "name": "Upload Address Proof",
+          "request": {
+            "method": "POST",
+            "body": {"mode": "formdata", "formdata": [{"key": "address_proof", "type": "file", "src": ""}]},
+            "url": "{{base_url}}/kyc/verification/address-proof/"
+          }
+        },
+        {
+          "name": "Submit Bank Details",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"account_holder_name\": \"John Doe\",\n    \"account_number\": \"123456789012\",\n    \"ifsc_code\": \"SBIN0001234\",\n    \"bank_name\": \"State Bank of India\"\n}"},
+            "url": "{{base_url}}/kyc/bank/"
+          }
+        },
+        {
+          "name": "Submit KYC for Review",
+          "request": {"method": "POST", "url": "{{base_url}}/kyc/submit/"}
+        },
+        {
+          "name": "Send OTP (KYC)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"otp_type\": \"EMAIL\",\n    \"email\": \"john.doe@example.com\"\n}"},
+            "url": "{{base_url}}/auth-user/send-otp/"
+          }
+        },
+        {
+          "name": "Verify OTP (KYC)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"123456\"\n}"},
+            "url": "{{base_url}}/auth-user/verify-otp/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. KYC Admin (Admin Only)",
+      "item": [
+        {
+          "name": "List KYC Applications",
+          "request": {"method": "GET", "url": "{{base_url}}/kyc/admin/applications/"}
+        },
+        {
+          "name": "List Submitted Applications",
+          "request": {"method": "GET", "url": "{{base_url}}/kyc/admin/applications/?status=SUBMITTED"}
+        },
+        {
+          "name": "Get Application Details",
+          "request": {"method": "GET", "url": "{{base_url}}/kyc/admin/applications/KYC20251210001/"}
+        },
+        {
+          "name": "Start Review",
+          "request": {"method": "POST", "url": "{{base_url}}/kyc/admin/applications/KYC20251210001/start-review/"}
+        },
+        {
+          "name": "Approve Application",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"action\": \"APPROVE\",\n    \"remarks\": \"All documents verified\"\n}"},
+            "url": "{{base_url}}/kyc/admin/applications/KYC20251210001/review/"
+          }
+        },
+        {
+          "name": "Reject Application",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"action\": \"REJECT\",\n    \"remarks\": \"PAN number mismatch\"\n}"},
+            "url": "{{base_url}}/kyc/admin/applications/KYC20251210001/review/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. User Management (Admin)",
+      "item": [
+        {
+          "name": "List All Users",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/users/"}
+        },
+        {
+          "name": "List Users by Role",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/users/?role=CLIENT"}
+        },
+        {
+          "name": "Get User Details",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/users/{{user_id}}/"}
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"first_name\": \"Updated\",\n    \"is_active\": true\n}"},
+            "url": "{{base_url}}/auth-user/users/{{user_id}}/"
+          }
+        },
+        {
+          "name": "Activate User",
+          "request": {"method": "PUT", "url": "{{base_url}}/auth-user/users/{{user_id}}/activate/"}
+        },
+        {
+          "name": "Deactivate User",
+          "request": {"method": "PUT", "url": "{{base_url}}/auth-user/users/{{user_id}}/deactivate/"}
+        },
+        {
+          "name": "Soft Delete User",
+          "request": {"method": "DELETE", "url": "{{base_url}}/auth-user/users/{{user_id}}/"}
+        },
+        {
+          "name": "Restore User",
+          "request": {"method": "POST", "url": "{{base_url}}/auth-user/users/{{user_id}}/restore/"}
+        },
+        {
+          "name": "Hard Delete User",
+          "request": {"method": "DELETE", "url": "{{base_url}}/auth-user/users/{{user_id}}/hard-delete/"}
+        }
+      ]
+    },
+    {
+      "name": "08. RBAC - Roles & Apps",
+      "item": [
+        {
+          "name": "Initialize Default Roles",
+          "request": {"method": "POST", "url": "{{base_url}}/rbac/roles/initialize/"}
+        },
+        {
+          "name": "List All Roles",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/roles/"}
+        },
+        {
+          "name": "Get Role Details",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/roles/1/"}
+        },
+        {
+          "name": "List All Apps",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/apps/"}
+        },
+        {
+          "name": "Create App",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"name\": \"New Module\",\n    \"code\": \"NEW_MODULE\",\n    \"description\": \"A new module\",\n    \"is_active\": true\n}"},
+            "url": "{{base_url}}/rbac/apps/"
+          }
+        },
+        {
+          "name": "List All Features",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/features/"}
+        },
+        {
+          "name": "List Features by App",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/features/?app_id=1"}
+        },
+        {
+          "name": "Get All Apps with Features",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/all-access-items/"}
+        }
+      ]
+    },
+    {
+      "name": "09. RBAC - User Access Management",
+      "item": [
+        {
+          "name": "Get User Access Overview",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/users/{{user_id}}/access/"}
+        },
+        {
+          "name": "Assign Access to User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"role_id\": 3,\n    \"app_ids\": [1, 2, 3],\n    \"feature_ids\": [1, 2, 3, 4, 5]\n}"},
+            "url": "{{base_url}}/rbac/users/{{user_id}}/assign-access/"
+          }
+        },
+        {
+          "name": "Revoke Access from User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"app_ids\": [2],\n    \"feature_ids\": [4, 5]\n}"},
+            "url": "{{base_url}}/rbac/users/{{user_id}}/revoke-access/"
+          }
+        },
+        {
+          "name": "Assign Role to User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"user\": 5,\n    \"role\": 3,\n    \"is_active\": true\n}"},
+            "url": "{{base_url}}/rbac/user-role-assignments/"
+          }
+        },
+        {
+          "name": "List Role Assignments",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/user-role-assignments/"}
+        },
+        {
+          "name": "Bulk Assign Apps to Role",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"role_id\": 3,\n    \"app_ids\": [1, 2, 3]\n}"},
+            "url": "{{base_url}}/rbac/role-app-mappings/bulk/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Bill Pay - Categories & Billers",
+      "item": [
+        {
+          "name": "List Bill Categories",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/categories/"}
+        },
+        {
+          "name": "List Billers",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/billers/"}
+        },
+        {
+          "name": "List Billers by Category",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/billers/?category_id=1"}
+        },
+        {
+          "name": "Get Featured Billers",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/featured/"}
+        },
+        {
+          "name": "Get Biller Details",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/billers/1/"}
+        }
+      ]
+    },
+    {
+      "name": "11. Bill Pay - Fetch & Pay",
+      "item": [
+        {
+          "name": "Fetch Bill",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"biller_id\": 1,\n    \"consumer_number\": \"123456789\",\n    \"additional_params\": {}\n}"},
+            "url": "{{base_url}}/bills/fetch/"
+          }
+        },
+        {
+          "name": "Pay Bill",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"biller_id\": 1,\n    \"consumer_number\": \"123456789\",\n    \"amount\": 1500.00,\n    \"consumer_name\": \"John Doe\",\n    \"payment_method\": \"WALLET\"\n}"},
+            "url": "{{base_url}}/bills/pay/"
+          }
+        },
+        {
+          "name": "Get Payment History",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/history/"}
+        },
+        {
+          "name": "Get Payment History (Filtered)",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/history/?status=SUCCESS&page=1&page_size=10"}
+        },
+        {
+          "name": "Get Payment Details",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/payments/BP20251208123456ABC/"}
+        },
+        {
+          "name": "Get Recent Payments",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/recent/?limit=5"}
+        }
+      ]
+    },
+    {
+      "name": "12. Bill Pay - Saved Billers",
+      "item": [
+        {
+          "name": "List Saved Billers",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/saved/"}
+        },
+        {
+          "name": "Save Biller",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"biller\": 1,\n    \"consumer_number\": \"123456789\",\n    \"nickname\": \"Home Electricity\"\n}"},
+            "url": "{{base_url}}/bills/saved/"
+          }
+        },
+        {
+          "name": "Get Saved Biller",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/saved/1/"}
+        },
+        {
+          "name": "Update Saved Biller",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"nickname\": \"Updated Name\"\n}"},
+            "url": "{{base_url}}/bills/saved/1/"
+          }
+        },
+        {
+          "name": "Delete Saved Biller",
+          "request": {"method": "DELETE", "url": "{{base_url}}/bills/saved/1/"}
+        }
+      ]
+    },
+    {
+      "name": "13. Bill Pay - Bank Accounts",
+      "item": [
+        {
+          "name": "List Bank Accounts",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/bank-accounts/"}
+        },
+        {
+          "name": "Add Bank Account",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"account_holder_name\": \"John Doe\",\n    \"account_number\": \"123456789012\",\n    \"confirm_account_number\": \"123456789012\",\n    \"ifsc_code\": \"SBIN0001234\",\n    \"bank_name\": \"State Bank of India\",\n    \"account_type\": \"SAVINGS\",\n    \"nickname\": \"Salary Account\"\n}"},
+            "url": "{{base_url}}/bills/bank-accounts/"
+          }
+        },
+        {
+          "name": "Get Bank Account",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/bank-accounts/1/"}
+        },
+        {
+          "name": "Update Bank Account",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"nickname\": \"Updated Name\",\n    \"is_primary\": true\n}"},
+            "url": "{{base_url}}/bills/bank-accounts/1/"
+          }
+        },
+        {
+          "name": "Verify Bank Account",
+          "request": {"method": "POST", "url": "{{base_url}}/bills/bank-accounts/1/verify/"}
+        },
+        {
+          "name": "Delete Bank Account",
+          "request": {"method": "DELETE", "url": "{{base_url}}/bills/bank-accounts/1/"}
+        }
+      ]
+    },
+    {
+      "name": "14. Bill Pay - Cards",
+      "item": [
+        {
+          "name": "List Cards",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/cards/"}
+        },
+        {
+          "name": "Add Card",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"card_number\": \"4111111111111111\",\n    \"card_holder_name\": \"John Doe\",\n    \"expiry_month\": \"12\",\n    \"expiry_year\": \"2028\",\n    \"card_type\": \"DEBIT\",\n    \"card_network\": \"VISA\",\n    \"nickname\": \"Primary Card\"\n}"},
+            "url": "{{base_url}}/bills/cards/"
+          }
+        },
+        {
+          "name": "Get Card",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/cards/1/"}
+        },
+        {
+          "name": "Delete Card",
+          "request": {"method": "DELETE", "url": "{{base_url}}/bills/cards/1/"}
+        }
+      ]
+    },
+    {
+      "name": "15. Bill Pay - MPIN",
+      "item": [
+        {
+          "name": "Check MPIN Status",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/mpin/setup/"}
+        },
+        {
+          "name": "Setup MPIN",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"mpin\": \"123456\",\n    \"confirm_mpin\": \"123456\",\n    \"password\": \"your_account_password\"\n}"},
+            "url": "{{base_url}}/bills/mpin/setup/"
+          }
+        },
+        {
+          "name": "Verify MPIN",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"mpin\": \"123456\"\n}"},
+            "url": "{{base_url}}/bills/mpin/verify/"
+          }
+        },
+        {
+          "name": "Change MPIN",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"current_mpin\": \"123456\",\n    \"new_mpin\": \"654321\",\n    \"confirm_mpin\": \"654321\"\n}"},
+            "url": "{{base_url}}/bills/mpin/change/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Bill Pay - Money Transfer",
+      "item": [
+        {
+          "name": "Verify IFSC Code",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/ifsc/SBIN0001234/"}
+        },
+        {
+          "name": "List Payment Gateways",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/gateways/"}
+        },
+        {
+          "name": "Transfer Money",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n    \"source_bank_account_id\": 1,\n    \"beneficiary_name\": \"Jane Doe\",\n    \"beneficiary_account_number\": \"987654321012\",\n    \"beneficiary_ifsc\": \"HDFC0001234\",\n    \"amount\": 5000.00,\n    \"remarks\": \"Payment\",\n    \"mpin\": \"123456\"\n}"},
+            "url": "{{base_url}}/bills/transfer/"
+          }
+        },
+        {
+          "name": "List Transactions",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/transactions/"}
+        },
+        {
+          "name": "Get Transaction Details",
+          "request": {"method": "GET", "url": "{{base_url}}/bills/transactions/TXN20251210123456ABC/"}
+        }
+      ]
+    },
+    {
+      "name": "17. Audit Logs",
+      "item": [
+        {
+          "name": "Get RBAC Audit Logs",
+          "request": {"method": "GET", "url": "{{base_url}}/rbac/audit-logs/"}
+        },
+        {
+          "name": "Get All Activity Logs (Admin)",
+          "request": {"method": "GET", "url": "{{base_url}}/auth-user/activity-logs/"}
+        }
+      ]
+    }
+  ]
+}
