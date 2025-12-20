@@ -15,7 +15,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+
 from django.urls import path, include, re_path
+from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -64,6 +66,15 @@ urlpatterns = [
     path('api/auth-user/verify-otp/', OTPVerifyView.as_view(), name='verify-otp'),
     path('api/auth-user/resend-otp/', OTPResendView.as_view(), name='resend-otp'),
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+
+    path('api/auth/send-otp/', OTPSendView.as_view(), name='send-otp'),
+    path('api/auth/verify-otp/', OTPVerifyView.as_view(), name='verify-otp'),
+    path('api/auth/resend-otp/', OTPResendView.as_view(), name='resend-otp'),
+    
+    # Health check & Root
+    path('api/health/', lambda request: JsonResponse({'status': 'healthy', 'message': 'CredbuzzPay Backend is running'}), name='health-check'),
+    path('', lambda request: JsonResponse({'status': 'running', 'message': 'Welcome to CredbuzzPay Backend'}), name='root'),
+
 ]
 
 # Serve media files in development
