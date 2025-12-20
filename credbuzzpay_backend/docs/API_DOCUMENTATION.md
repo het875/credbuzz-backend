@@ -49,11 +49,11 @@ All API responses follow this standard format:
 
 ---
 
-# Users Auth API (`/api/auth/`)
+# Users Auth API (`/api/auth-user/`)
 
 ## 1. Register User
 
-**POST** `/api/auth/register/`
+**POST** `/api/auth-user/register/`
 
 Creates a new user account.
 
@@ -91,7 +91,7 @@ Creates a new user account.
 
 ## 2. Login
 
-**POST** `/api/auth/login/`
+**POST** `/api/auth-user/login/`
 
 Authenticates user and returns JWT tokens with permissions.
 
@@ -259,7 +259,7 @@ The access token includes these claims for use in middleware:
 
 ## 3. Logout
 
-**POST** `/api/auth/logout/`
+**POST** `/api/auth-user/logout/`
 
 🔒 **Requires Authentication**
 
@@ -289,7 +289,7 @@ Authorization: Bearer <access_token>
 
 ## 4. Refresh Token
 
-**POST** `/api/auth/refresh-token/`
+**POST** `/api/auth-user/refresh-token/`
 
 Gets a new access token using refresh token.
 
@@ -316,7 +316,7 @@ Gets a new access token using refresh token.
 
 ## 5. Forgot Password
 
-**POST** `/api/auth/forgot-password/`
+**POST** `/api/auth-user/forgot-password/`
 
 Sends password reset token to user's email.
 
@@ -342,7 +342,7 @@ Sends password reset token to user's email.
 
 ## 6. Reset Password
 
-**POST** `/api/auth/reset-password/`
+**POST** `/api/auth-user/reset-password/`
 
 Resets password using the reset token.
 
@@ -367,7 +367,7 @@ Resets password using the reset token.
 
 ## 7. List Users
 
-**GET** `/api/auth/users/`
+**GET** `/api/auth-user/users/`
 
 🔒 **Requires Authentication**
 
@@ -403,7 +403,7 @@ Returns list of all users.
 
 ## 8. Get User Details
 
-**GET** `/api/auth/users/{id}/`
+**GET** `/api/auth-user/users/{id}/`
 
 🔒 **Requires Authentication**
 
@@ -434,7 +434,7 @@ Returns details of a specific user.
 
 ## 9. Update User
 
-**PUT** `/api/auth/users/{id}/`
+**PUT** `/api/auth-user/users/{id}/`
 
 🔒 **Requires Authentication**
 
@@ -469,7 +469,7 @@ Updates user information.
 
 ## 10. Delete User
 
-**DELETE** `/api/auth/users/{id}/`
+**DELETE** `/api/auth-user/users/{id}/`
 
 🔒 **Requires Authentication**
 
@@ -487,7 +487,7 @@ Deletes a user account.
 
 ## 11. Get Current User Profile
 
-**GET** `/api/auth/me/`
+**GET** `/api/auth-user/me/`
 
 🔒 **Requires Authentication**
 

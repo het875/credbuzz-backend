@@ -34,10 +34,10 @@ All endpoints require JWT authentication using the Bearer token scheme.
 Authorization: Bearer <access_token>
 ```
 
-Get the token from `/api/auth/login/`:
+Get the token from `/api/auth-user/login/`:
 
 ```json
-POST /api/auth/login/
+POST /api/auth-user/login/
 {
     "identifier": "user@example.com",
     "password": "password123"
@@ -731,7 +731,7 @@ POST /api/kyc/admin/applications/{application_id}/reject/
 **Login and Get Token:**
 ```powershell
 $body = @{identifier="dev@credbuzz.com"; password="Developer@123"} | ConvertTo-Json
-$response = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/login/" -Method POST -Body $body -ContentType "application/json"
+$response = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth-user/login/" -Method POST -Body $body -ContentType "application/json"
 $token = $response.data.tokens.access_token
 $headers = @{Authorization = "Bearer $token"}
 ```

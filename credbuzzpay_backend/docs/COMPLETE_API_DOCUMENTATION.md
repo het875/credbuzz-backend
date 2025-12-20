@@ -59,7 +59,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 │                                                                             │
 │  STEP 1: Create Account                                                     │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ POST /api/auth/register/                                             │   │
+│  │ POST /api/auth-user/register/                                             │   │
 │  │ Body: first_name, middle_name, last_name, email, phone_number,       │   │
 │  │       password, confirm_password                                     │   │
 │  │ Response: User created + OTPs sent to email & phone                  │   │
@@ -67,14 +67,14 @@ This document provides comprehensive documentation for all API endpoints in the 
 │                              ↓                                              │
 │  STEP 2: Verify OTPs                                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ POST /api/auth/verify-registration-otp/                              │   │
+│  │ POST /api/auth-user/verify-registration-otp/                              │   │
 │  │ Body: email, otp_type (EMAIL/PHONE), otp_code                        │   │
 │  │ (Repeat for both EMAIL and PHONE)                                    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                              ↓                                              │
 │  STEP 3: Login                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ POST /api/auth/login/                                                │   │
+│  │ POST /api/auth-user/login/                                                │   │
 │  │ Body: identifier (email/username/phone/user_code), password          │   │
 │  │ Response: access_token, refresh_token, app_access, feature_access    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
@@ -107,7 +107,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.1 Register User
 
-**Endpoint:** `POST /api/auth/register/`  
+**Endpoint:** `POST /api/auth-user/register/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -157,7 +157,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.2 Login
 
-**Endpoint:** `POST /api/auth/login/`  
+**Endpoint:** `POST /api/auth-user/login/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -198,7 +198,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.3 Logout
 
-**Endpoint:** `POST /api/auth/logout/`  
+**Endpoint:** `POST /api/auth-user/logout/`  
 **Auth Required:** Yes
 
 **Request Body (Optional):**
@@ -210,7 +210,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.4 Refresh Token
 
-**Endpoint:** `POST /api/auth/refresh-token/`  
+**Endpoint:** `POST /api/auth-user/refresh-token/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -222,7 +222,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.5 Change Password
 
-**Endpoint:** `POST /api/auth/change-password/`  
+**Endpoint:** `POST /api/auth-user/change-password/`  
 **Auth Required:** Yes
 
 **Request Body:**
@@ -236,7 +236,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.6 Forgot Password
 
-**Endpoint:** `POST /api/auth/forgot-password/`  
+**Endpoint:** `POST /api/auth-user/forgot-password/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -248,7 +248,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 2.7 Reset Password
 
-**Endpoint:** `POST /api/auth/reset-password/`  
+**Endpoint:** `POST /api/auth-user/reset-password/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -266,7 +266,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 3.1 Verify Registration OTP
 
-**Endpoint:** `POST /api/auth/verify-registration-otp/`  
+**Endpoint:** `POST /api/auth-user/verify-registration-otp/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -293,7 +293,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 3.2 Resend Registration OTP
 
-**Endpoint:** `POST /api/auth/resend-registration-otp/`  
+**Endpoint:** `POST /api/auth-user/resend-registration-otp/`  
 **Auth Required:** No
 
 **Request Body:**
@@ -310,12 +310,12 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 4.1 Get Basic Profile
 
-**Endpoint:** `GET /api/auth/profile/`  
+**Endpoint:** `GET /api/auth-user/profile/`  
 **Auth Required:** Yes
 
 ### 4.2 Update Basic Profile
 
-**Endpoint:** `PATCH /api/auth/profile/`  
+**Endpoint:** `PATCH /api/auth-user/profile/`  
 **Auth Required:** Yes
 
 **Request Body:**
@@ -329,7 +329,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 4.3 Get Full Profile with KYC Status & Access
 
-**Endpoint:** `GET /api/auth/profile-full/`  
+**Endpoint:** `GET /api/auth-user/profile-full/`  
 **Auth Required:** Yes
 
 **Response (200 OK):**
@@ -390,7 +390,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 4.4 User List (Admin)
 
-**Endpoint:** `GET /api/auth/users/`  
+**Endpoint:** `GET /api/auth-user/users/`  
 **Auth Required:** Yes (Admin+)
 
 **Query Parameters:**
@@ -400,33 +400,33 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 4.5 Get User Detail
 
-**Endpoint:** `GET /api/auth/users/<user_id>/`  
+**Endpoint:** `GET /api/auth-user/users/<user_id>/`  
 **Auth Required:** Yes (Admin+)
 
 ### 4.6 Update User
 
-**Endpoint:** `PATCH /api/auth/users/<user_id>/`  
+**Endpoint:** `PATCH /api/auth-user/users/<user_id>/`  
 **Auth Required:** Yes (Admin+)
 
 ### 4.7 Soft Delete User
 
-**Endpoint:** `DELETE /api/auth/users/<user_id>/`  
+**Endpoint:** `DELETE /api/auth-user/users/<user_id>/`  
 **Auth Required:** Yes (Admin+)
 
 ### 4.8 Hard Delete User
 
-**Endpoint:** `DELETE /api/auth/users/<user_id>/hard-delete/`  
+**Endpoint:** `DELETE /api/auth-user/users/<user_id>/hard-delete/`  
 **Auth Required:** Yes (Super Admin+)
 
 ### 4.9 Restore User
 
-**Endpoint:** `POST /api/auth/users/<user_id>/restore/`  
+**Endpoint:** `POST /api/auth-user/users/<user_id>/restore/`  
 **Auth Required:** Yes (Admin+)
 
 ### 4.10 Activate/Deactivate User
 
-**Endpoint:** `POST /api/auth/users/<user_id>/activate/`  
-**Endpoint:** `POST /api/auth/users/<user_id>/deactivate/`  
+**Endpoint:** `POST /api/auth-user/users/<user_id>/activate/`  
+**Endpoint:** `POST /api/auth-user/users/<user_id>/deactivate/`  
 **Auth Required:** Yes (Admin+)
 
 ---
@@ -435,7 +435,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 5.1 Get Activity Logs
 
-**Endpoint:** `GET /api/auth/activity-logs/`  
+**Endpoint:** `GET /api/auth-user/activity-logs/`  
 **Auth Required:** Yes (Admin+ for all logs, users can view own)
 
 **Query Parameters:**
@@ -464,7 +464,7 @@ This document provides comprehensive documentation for all API endpoints in the 
                 "entity_id": "",
                 "ip_address": "127.0.0.1",
                 "request_method": "POST",
-                "request_path": "/api/auth/login/",
+                "request_path": "/api/auth-user/login/",
                 "is_success": true,
                 "created_at": "2024-12-05T10:00:00Z"
             }
@@ -476,7 +476,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 
 ### 5.2 Get My Activity
 
-**Endpoint:** `GET /api/auth/my-activity/`  
+**Endpoint:** `GET /api/auth-user/my-activity/`  
 **Auth Required:** Yes
 
 **Query Parameters:**
@@ -997,7 +997,7 @@ $body = @{
     confirm_password = "Test@1234"
 } | ConvertTo-Json
 
-$register = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/register/" -Method POST -Body $body -ContentType "application/json"
+$register = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth-user/register/" -Method POST -Body $body -ContentType "application/json"
 
 # 2. Verify Email OTP
 $verifyEmail = @{
@@ -1006,7 +1006,7 @@ $verifyEmail = @{
     otp_code = $register.data.test_otps.email_otp
 } | ConvertTo-Json
 
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/verify-registration-otp/" -Method POST -Body $verifyEmail -ContentType "application/json"
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth-user/verify-registration-otp/" -Method POST -Body $verifyEmail -ContentType "application/json"
 
 # 3. Verify Phone OTP
 $verifyPhone = @{
@@ -1015,7 +1015,7 @@ $verifyPhone = @{
     otp_code = $register.data.test_otps.phone_otp
 } | ConvertTo-Json
 
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/verify-registration-otp/" -Method POST -Body $verifyPhone -ContentType "application/json"
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth-user/verify-registration-otp/" -Method POST -Body $verifyPhone -ContentType "application/json"
 
 # 4. Login
 $login = @{
@@ -1023,14 +1023,14 @@ $login = @{
     password = "Test@1234"
 } | ConvertTo-Json
 
-$loginResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/login/" -Method POST -Body $login -ContentType "application/json"
+$loginResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth-user/login/" -Method POST -Body $login -ContentType "application/json"
 
 # Save token
 $token = $loginResponse.data.tokens.access_token
 $headers = @{ Authorization = "Bearer $token" }
 
 # 5. Get Profile
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/profile-full/" -Method GET -Headers $headers
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth-user/profile-full/" -Method GET -Headers $headers
 ```
 
 ---

@@ -218,14 +218,19 @@ LOGIN_LOCKOUT_STAGES = [
 
 
 # CORS Settings
-# In development, allow localhost origins
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://*.vercel.app",  # Allow Vercel deployments
-]
+# TEMPORARY: Allow all origins for development/testing
+# TODO: Restrict this in production to specific origins
+CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins
+
+# Keep these for when you want to restrict origins later:
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "http://127.0.0.1:5173",
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+#     "https://*.vercel.app",  # Allow Vercel deployments
+#     "https://credbuzz-backend-yr5y.onrender.com",
+# ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
