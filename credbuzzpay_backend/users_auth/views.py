@@ -21,6 +21,7 @@ from .serializers import (
     UserUpdateSerializer,
     UserListSerializer,
     TokenRefreshSerializer,
+    CreatePrivilegedUserSerializer,
 )
 from .jwt_utils import JWTManager
 from .authentication import JWTAuthentication, get_client_ip, get_user_agent
@@ -1342,3 +1343,67 @@ class UserProfileWithAccessView(APIView):
                 'user': UserSerializer(user).data,
             }
         }, status=status.HTTP_200_OK)
+
+
+class CreatePrivilegedUserView(APIView):
+    """
+    API endpoint for creating privileged users (Developer/Super Admin).
+    
+    This endpoint is INTENDED for SYSTEM SETUP and should be protected.
+    It requires a 'secret_key' in the request body.
+    
+    POST /api/auth-user/system/create-privileged-user/
+    
+    Request Body:
+    {
+        "email": "dev@example.com",
+        "username": "devuser",
+        "first_name": "Dev",
+        "last_name": "User",
+        "password": "strongpassword",
+        "confirm_password": "strongpassword",
+        "role": "DEVELOPER" or "SUPER_ADMIN",
+        "secret_key": "YOUR_SECRET_KEY"
+    }
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [] 
+    
+    def post(self, request):
+        # Check for system setup secret key
+        # In production, this should be validated against an environment variable
+        # For this requirement, we will use a hardcoded check or env var
+        import os
+        creation_secret = os.getenv('PRIVILEGED_USER_CREATION_SECRET', 'credbuzz_setup_secret_2025')
+        
+        request_secret = request.data.get('secret_key')
+        
+        if request_secret != creation_secret:
+            return Response({
+                'success': False,
+                'message': 'Unauthorized. Invalid secret key.'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
+        serializer = CreatePrivilegedUserSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.save()
+            
+            return Response({
+                'success': True,
+                'message': f'{user.role} user created successfully.',
+                'data': {
+                    'user_code': user.user_code,
+                    'email': user.email,
+                    'username': user.username,
+                    'role': user.role,
+                    'created_at': user.created_at
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+        return Response({
+            'success': False,
+            'message': 'User creation failed.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+

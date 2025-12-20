@@ -700,6 +700,73 @@
           "request": {"method": "GET", "url": "{{base_url}}/auth-user/activity-logs/"}
         }
       ]
+    },
+    {
+      "name": "18. System / Setup (Initial)",
+      "item": [
+        {
+          "name": "Create Developer User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"dev@credbuzz.com\",\n    \"username\": \"developer\",\n    \"first_name\": \"System\",\n    \"last_name\": \"Developer\",\n    \"password\": \"DevSecure@2025\",\n    \"confirm_password\": \"DevSecure@2025\",\n    \"role\": \"DEVELOPER\",\n    \"secret_key\": \"credbuzz_setup_secret_2025\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth-user/system/create-privileged-user/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth-user",
+                "system",
+                "create-privileged-user",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Create Super Admin User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@credbuzz.com\",\n    \"username\": \"superadmin\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"password\": \"AdminSecure@2025\",\n    \"confirm_password\": \"AdminSecure@2025\",\n    \"role\": \"SUPER_ADMIN\",\n    \"secret_key\": \"credbuzz_setup_secret_2025\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth-user/system/create-privileged-user/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth-user",
+                "system",
+                "create-privileged-user",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
     }
   ]
 }

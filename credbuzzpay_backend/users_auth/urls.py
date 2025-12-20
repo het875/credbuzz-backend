@@ -21,6 +21,7 @@ from .views import (
     UserActivityLogListView,
     MyActivityLogView,
     UserProfileWithAccessView,
+    CreatePrivilegedUserView,
 )
 
 app_name = 'users_auth'
@@ -57,4 +58,7 @@ urlpatterns = [
     path('users/<int:user_id>/hard-delete/', UserHardDeleteView.as_view(), name='user-hard-delete'),
     path('users/<int:user_id>/restore/', UserRestoreView.as_view(), name='user-restore'),
     path('users/<int:user_id>/<str:action>/', UserActivateView.as_view(), name='user-action'),
+    
+    # System Setup (Protected by Secret Key)
+    path('system/create-privileged-user/', CreatePrivilegedUserView.as_view(), name='create-privileged-user'),
 ]

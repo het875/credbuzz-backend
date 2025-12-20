@@ -2,7 +2,7 @@
 Serializers for users_auth app
 """
 from rest_framework import serializers
-from .models import User, PasswordResetToken
+from .models import User, PasswordResetToken, RoleName
 import re
 
 
@@ -484,3 +484,81 @@ class UserProfileWithAccessSerializer(serializers.Serializer):
     kyc_status = serializers.DictField(read_only=True, required=False)
     app_access = serializers.ListField(read_only=True, required=False)
     feature_access = serializers.ListField(read_only=True, required=False)
+
+
+class CreatePrivilegedUserSerializer(serializers.Serializer):
+    """
+    Serializer for creating privileged users (Developer/Super Admin).
+    Requires a secret key for authorization.
+    """
+    email = serializers.EmailField()
+    username = serializers.CharField(max_length=150)
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+    role = serializers.ChoiceField(choices=[
+        (RoleName.DEVELOPER, 'Developer'),
+        (RoleName.SUPER_ADMIN, 'Super Admin')
+    ])
+    secret_key = serializers.CharField(write_only=True)
+
+    def validate_role(self, value):
+        if value not in [RoleName.DEVELOPER, RoleName.SUPER_ADMIN]:
+            raise serializers.ValidationError("Only Developer and Super Admin roles can be created via this endpoint.")
+        return value
+
+    def validate_password(self, value):
+        # Basic complexity check
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        if not re.search(r'[A-Za-z]', value) or not re.search(r'\d', value):
+            raise serializers.ValidationError("Password must contain both letters and numbers.")
+        return value
+
+    def validate(self, data):
+        # 1. Validate Password Confirmation
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+
+        # 2. Check for unique email
+        if User.objects.filter(email=data['email']).exists():
+            raise serializers.ValidationError({"email": "User with this email already exists."})
+
+        # 3. Check for unique username
+        if User.objects.filter(username=data['username']).exists():
+            raise serializers.ValidationError({"username": "User with this username already exists."})
+
+        return data
+
+    def create(self, validated_data):
+        # Remove auxiliary fields
+        validated_data.pop('confirm_password')
+        secret_key = validated_data.pop('secret_key')
+        
+        # Role is already validated and in data
+        
+        # Create user
+        user = User(
+            email=validated_data['email'],
+            username=validated_data['username'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            role=validated_data['role'],
+            is_active=True,
+            is_verified=True, # Auto-verify privileged users
+            mobile_verified=True,
+            email_verified=True
+        )
+        
+        # Generate Salt and Hash Password
+        salt = User.generate_salt()
+        hashed_password = User.hash_password(validated_data['password'], salt)
+        
+        user.password_salt = salt
+        user.password_hash = hashed_password
+        
+        # Save user (User Code will be auto-generated in save method)
+        user.save()
+        
+        return user
