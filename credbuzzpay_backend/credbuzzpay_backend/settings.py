@@ -29,10 +29,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-=29@j_0w22g*)yte-kxas__e7@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-
-# ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-
-ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS configuration
+# In production, set this to your server IP and domain names
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '80.225.194.105,localhost,127.0.0.1').split(',')
 
 
 
@@ -218,19 +217,27 @@ LOGIN_LOCKOUT_STAGES = [
 
 
 # CORS Settings
-# TEMPORARY: Allow all origins for development/testing
-# TODO: Restrict this in production to specific origins
-CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins
+# Production: Use environment variable to specify allowed origins
+# Development: Allow all origins when DEBUG=True
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    # Get allowed origins from environment variable
+    cors_origins_str = os.getenv('CORS_ALLOWED_ORIGINS', 'http://80.225.194.105')
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_str.split(',') if origin.strip()]
+    # Also allow common development origins if specified
+    additional_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    # Only add if explicitly in the env var
+    for origin in additional_origins:
+        if origin in cors_origins_str:
+            CORS_ALLOWED_ORIGINS.append(origin)
 
-# Keep these for when you want to restrict origins later:
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "http://127.0.0.1:5173",
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     "https://*.vercel.app",  # Allow Vercel deployments
-#     "https://credbuzz-backend-yr5y.onrender.com",
-# ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
