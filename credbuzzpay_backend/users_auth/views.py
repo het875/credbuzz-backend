@@ -95,17 +95,32 @@ class RegisterView(APIView):
                 user_name=user_name
             )
             
-            # Generate Phone OTP (SMS not implemented yet)
-            phone_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
-            phone_otp = OTPVerification.objects.create(
-                user=user,
-                otp_type=OTPType.PHONE,
-                otp_code=phone_otp_code,
-                expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
-                ip_address=get_client_ip(request),
-                user_agent=get_user_agent(request)
-            )
-            # TODO: Integrate SMS service for phone OTP
+            # Check if mobile verification is required
+            require_mobile_verification = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
+            
+            phone_otp_sent = False
+            phone_message = ""
+            
+            if require_mobile_verification:
+                # Generate Phone OTP (SMS not implemented yet)
+                phone_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
+                phone_otp = OTPVerification.objects.create(
+                    user=user,
+                    otp_type=OTPType.PHONE,
+                    otp_code=phone_otp_code,
+                    expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
+                    ip_address=get_client_ip(request),
+                    user_agent=get_user_agent(request)
+                )
+                # TODO: Integrate SMS service for phone OTP
+                phone_otp_sent = True
+                phone_message = "Phone OTP sent successfully"
+            else:
+                # Mobile verification disabled - auto-verify phone
+                user.is_phone_verified = True
+                user.save(update_fields=['is_phone_verified'])
+                phone_otp_code = None
+                phone_message = "Mobile verification disabled - automatically verified"
             
             response_data = {
                 'success': True,
@@ -114,19 +129,23 @@ class RegisterView(APIView):
                     'user': UserSerializer(user).data,
                     'verification_required': {
                         'email': True,
-                        'phone': True,
+                        'phone': require_mobile_verification,
                     },
                     'email_sent': email_sent,
+                    'phone_otp_sent': phone_otp_sent,
+                    'phone_message': phone_message,
                     'expires_in_minutes': otp_expiry,
                 }
             }
             
             # Include OTP in response only in DEBUG mode for testing
             if settings.DEBUG:
-                response_data['data']['test_otps'] = {
+                test_otps = {
                     'email_otp': email_otp_code,
-                    'phone_otp': phone_otp_code,
                 }
+                if require_mobile_verification and phone_otp_code:
+                    test_otps['phone_otp'] = phone_otp_code
+                response_data['data']['test_otps'] = test_otps
             
             return Response(response_data, status=status.HTTP_201_CREATED)
         
@@ -911,6 +930,30 @@ class VerifyRegistrationOTPView(APIView):
                 'message': f'Invalid OTP type. Must be one of: {", ".join(valid_types)}',
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        # Check if mobile verification is required
+        require_mobile_verification = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
+        
+        # If mobile verification is disabled and verifying phone OTP, auto-verify
+        if otp_type.upper() == 'PHONE' and not require_mobile_verification:
+            # Auto-verify phone
+            user.is_phone_verified = True
+            user.phone_verified_at = timezone.now()
+            user.save(update_fields=['is_phone_verified', 'phone_verified_at'])
+            
+            return Response({
+                'success': True,
+                'message': 'Mobile verification is disabled - automatically verified',
+                'data': {
+                    'verified': True,
+                    'bypass_enabled': True,
+                    'user': {
+                        'email': user.email,
+                        'is_email_verified': user.is_email_verified,
+                        'is_phone_verified': user.is_phone_verified,
+                    }
+                }
+            }, status=status.HTTP_200_OK)
+        
         # Get the latest active OTP for this user and type
         otp_record = OTPVerification.objects.filter(
             user=user,
@@ -1010,6 +1053,23 @@ class ResendRegistrationOTPView(APIView):
                 'success': False,
                 'message': 'Phone is already verified.',
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if mobile verification is required
+        require_mobile_verification = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
+        
+        # If mobile verification is disabled and requesting phone OTP, auto-verify
+        if otp_type.upper() == 'PHONE' and not require_mobile_verification:
+            user.is_phone_verified = True
+            user.save(update_fields=['is_phone_verified'])
+            return Response({
+                'success': True,
+                'message': 'Mobile verification is disabled - automatically verified',
+                'data': {
+                    'otp_sent': False,
+                    'bypass_enabled': True,
+                    'message': 'Mobile verification bypassed'
+                }
+            }, status=status.HTTP_200_OK)
         
         # Get OTP settings
         otp_length = getattr(settings, 'OTP_LENGTH', 6)

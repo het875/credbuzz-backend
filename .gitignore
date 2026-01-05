@@ -94,6 +94,10 @@ env.bak/
 venv.bak/
 credbuzz_backend_venv/
 
+
+# ignore statics dir 
+credbuzzpay_backend/staticfiles/
+
 # Spyder project settings
 .spyderproject
 .spyproject
