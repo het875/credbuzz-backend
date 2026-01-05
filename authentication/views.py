@@ -91,18 +91,26 @@ def register(request):
         # Send email OTP for verification
         email_success, email_otp, email_message = send_otp_email(user, 'email_verification')
         
-        # Send mobile OTP if mobile number is provided
+        # Send mobile OTP if mobile number is provided AND mobile verification is required
         mobile_otp_sent = False
         mobile_message = ''
         mobile_otp = None
         
-        if user.mobile:
+        from django.conf import settings
+        require_mobile = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
+        
+        if user.mobile and require_mobile:
             is_valid, clean_mobile, validation_message = validate_mobile_number(user.mobile)
             if is_valid:
                 mobile_success, mobile_otp, mobile_message = send_sms_otp(user, clean_mobile, 'mobile_verification')
                 mobile_otp_sent = mobile_success
             else:
                 mobile_message = validation_message
+        elif user.mobile and not require_mobile:
+            # Mobile verification is disabled, auto-verify mobile
+            user.is_mobile_verified = True
+            user.save()
+            mobile_message = 'Mobile verification disabled - automatically verified'
         
         response_data = {
             'status': 'success',
@@ -427,6 +435,19 @@ def verify_email(request):
 @permission_classes([permissions.IsAuthenticated])
 def verify_mobile(request):
     """Verify mobile with OTP."""
+    from django.conf import settings
+    require_mobile = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
+    
+    # If mobile verification is disabled, auto-verify
+    if not require_mobile:
+        user = request.user
+        user.is_mobile_verified = True
+        user.save()
+        return Response({
+            'status': 'success',
+            'message': 'Mobile verification is disabled - automatically verified'
+        }, status=status.HTTP_200_OK)
+    
     otp = request.data.get('otp')
     
     if not otp:
@@ -482,6 +503,23 @@ def resend_otp(request):
             
         return Response(response_data, status=status.HTTP_200_OK)
     else:
+        # Check if mobile verification is required
+        from django.conf import settings
+        require_mobile = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
+        
+        if not require_mobile:
+            # Mobile verification is disabled, auto-verify
+            user.is_mobile_verified = True
+            user.save()
+            return Response({
+                'status': 'success',
+                'message': 'Mobile verification is disabled - automatically verified',
+                'data': {
+                    'otp_sent': False,
+                    'message': 'Mobile verification bypassed'
+                }
+            }, status=status.HTTP_200_OK)
+        
         # Send mobile OTP
         if not user.mobile:
             return Response({
