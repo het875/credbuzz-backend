@@ -1,0 +1,586 @@
+"""
+Bill Pay Serializers
+=====================
+Serializers for bill payment APIs.
+"""
+
+from rest_framework import serializers
+from .models import BillCategory, Biller, BillPayment, SavedBiller, PaymentStatus
+
+
+class BillCategorySerializer(serializers.ModelSerializer):
+    """Serializer for bill categories."""
+    
+    billers_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BillCategory
+        fields = ['id', 'name', 'code', 'description', 'icon', 'is_active', 'display_order', 'billers_count']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_billers_count(self, obj):
+        return obj.billers.filter(is_active=True).count()
+
+
+class BillerSerializer(serializers.ModelSerializer):
+    """Serializer for billers."""
+    
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    category_code = serializers.CharField(source='category.code', read_only=True)
+    
+    class Meta:
+        model = Biller
+        fields = [
+            'id', 'category', 'category_name', 'category_code',
+            'name', 'code', 'description', 'logo',
+            'min_amount', 'max_amount', 'required_fields',
+            'platform_fee', 'platform_fee_type',
+            'is_active', 'is_featured'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class BillerListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for biller lists."""
+    
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = Biller
+        fields = ['id', 'name', 'code', 'logo', 'category_name', 'is_featured']
+
+
+class BillFetchRequestSerializer(serializers.Serializer):
+    """Serializer for bill fetch request."""
+    
+    biller_id = serializers.IntegerField()
+    consumer_number = serializers.CharField(max_length=100)
+    # Additional fields can be passed dynamically based on biller requirements
+    additional_params = serializers.JSONField(required=False, default=dict)
+
+
+class BillFetchResponseSerializer(serializers.Serializer):
+    """Serializer for bill fetch response."""
+    
+    consumer_number = serializers.CharField()
+    consumer_name = serializers.CharField()
+    bill_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    bill_date = serializers.DateField(allow_null=True)
+    due_date = serializers.DateField(allow_null=True)
+    bill_number = serializers.CharField(allow_blank=True)
+    bill_period = serializers.CharField(allow_blank=True)
+    additional_info = serializers.JSONField(default=dict)
+    
+    # Fee calculation
+    platform_fee = serializers.DecimalField(max_digits=10, decimal_places=2)
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class BillPaymentRequestSerializer(serializers.Serializer):
+    """Serializer for bill payment request."""
+    
+    biller_id = serializers.IntegerField()
+    consumer_number = serializers.CharField(max_length=100)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    payment_method = serializers.ChoiceField(choices=['WALLET', 'UPI', 'CARD', 'NETBANKING'])
+    
+    # Optional fields from bill fetch
+    consumer_name = serializers.CharField(max_length=200, required=False)
+    bill_date = serializers.DateField(required=False)
+    due_date = serializers.DateField(required=False)
+    bill_number = serializers.CharField(max_length=100, required=False)
+    bill_period = serializers.CharField(max_length=100, required=False)
+    
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than 0")
+        return value
+
+
+class BillPaymentSerializer(serializers.ModelSerializer):
+    """Serializer for bill payment records."""
+    
+    biller_name = serializers.CharField(source='biller.name', read_only=True)
+    biller_code = serializers.CharField(source='biller.code', read_only=True)
+    category_name = serializers.CharField(source='biller.category.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = BillPayment
+        fields = [
+            'id', 'transaction_id',
+            'biller', 'biller_name', 'biller_code', 'category_name',
+            'consumer_number', 'consumer_name',
+            'bill_amount', 'platform_fee', 'total_amount',
+            'bill_date', 'due_date', 'bill_number', 'bill_period',
+            'status', 'status_display',
+            'payment_method', 'biller_ref_number',
+            'initiated_at', 'completed_at',
+            'failure_reason'
+        ]
+        read_only_fields = ['id', 'transaction_id', 'initiated_at', 'completed_at']
+
+
+class BillPaymentListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for payment list."""
+    
+    biller_name = serializers.CharField(source='biller.name', read_only=True)
+    category_name = serializers.CharField(source='biller.category.name', read_only=True)
+    
+    class Meta:
+        model = BillPayment
+        fields = [
+            'id', 'transaction_id', 'biller_name', 'category_name',
+            'consumer_number', 'total_amount', 'status',
+            'initiated_at', 'completed_at'
+        ]
+
+
+class SavedBillerSerializer(serializers.ModelSerializer):
+    """Serializer for saved billers."""
+    
+    biller_name = serializers.CharField(source='biller.name', read_only=True)
+    biller_code = serializers.CharField(source='biller.code', read_only=True)
+    category_name = serializers.CharField(source='biller.category.name', read_only=True)
+    biller_logo = serializers.ImageField(source='biller.logo', read_only=True)
+    
+    class Meta:
+        model = SavedBiller
+        fields = [
+            'id', 'biller', 'biller_name', 'biller_code', 'category_name', 'biller_logo',
+            'consumer_number', 'nickname',
+            'is_autopay_enabled', 'autopay_amount_limit',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class SavedBillerCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating saved billers."""
+    
+    class Meta:
+        model = SavedBiller
+        fields = ['biller', 'consumer_number', 'nickname', 'is_autopay_enabled', 'autopay_amount_limit']
+    
+    def validate(self, attrs):
+        user = self.context['request'].user
+        biller = attrs.get('biller')
+        consumer_number = attrs.get('consumer_number')
+        
+        # Check for duplicate
+        if SavedBiller.objects.filter(user=user, biller=biller, consumer_number=consumer_number).exists():
+            raise serializers.ValidationError("This biller is already saved with this consumer number.")
+        
+        return attrs
+    
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class PaymentHistoryFilterSerializer(serializers.Serializer):
+    """Serializer for payment history filters."""
+    
+    status = serializers.ChoiceField(choices=PaymentStatus.CHOICES, required=False)
+    category_id = serializers.IntegerField(required=False)
+    biller_id = serializers.IntegerField(required=False)
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    page = serializers.IntegerField(min_value=1, default=1)
+    page_size = serializers.IntegerField(min_value=1, max_value=100, default=20)
+
+
+# =============================================================================
+# BANK ACCOUNT SERIALIZERS
+# =============================================================================
+
+from .models import UserBankAccount, UserCard, UserMPIN, PaymentGateway, TransactionLog, TransactionType
+
+
+class UserBankAccountSerializer(serializers.ModelSerializer):
+    """Serializer for user bank accounts."""
+    
+    account_number_masked = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = UserBankAccount
+        fields = [
+            'id', 'account_holder_name', 'account_number_masked',
+            'ifsc_code', 'bank_name', 'branch_name', 'account_type',
+            'is_verified', 'verification_status', 'verified_at',
+            'is_primary', 'is_active', 'nickname',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'is_verified', 'verification_status', 'verified_at', 'created_at', 'updated_at']
+
+
+class UserBankAccountCreateSerializer(serializers.Serializer):
+    """Serializer for creating bank accounts."""
+    
+    account_holder_name = serializers.CharField(max_length=200)
+    account_number = serializers.CharField(max_length=18, min_length=9)
+    confirm_account_number = serializers.CharField(max_length=18, min_length=9)
+    ifsc_code = serializers.CharField(max_length=11, min_length=11)
+    bank_name = serializers.CharField(max_length=200)
+    branch_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    account_type = serializers.ChoiceField(choices=['SAVINGS', 'CURRENT'], default='SAVINGS')
+    is_primary = serializers.BooleanField(default=False)
+    nickname = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    
+    def validate(self, attrs):
+        # Validate account numbers match
+        if attrs['account_number'] != attrs['confirm_account_number']:
+            raise serializers.ValidationError({'confirm_account_number': 'Account numbers do not match.'})
+        
+        # Validate account number is numeric
+        if not attrs['account_number'].isdigit():
+            raise serializers.ValidationError({'account_number': 'Account number must contain only digits.'})
+        
+        # Validate IFSC format
+        import re
+        if not re.match(r'^[A-Z]{4}0[A-Z0-9]{6}$', attrs['ifsc_code'].upper()):
+            raise serializers.ValidationError({'ifsc_code': 'Invalid IFSC code format. Expected: ABCD0XXXXXX'})
+        
+        return attrs
+    
+    def create(self, validated_data):
+        user = self.context['request'].user
+        validated_data.pop('confirm_account_number')
+        
+        account = UserBankAccount(
+            user=user,
+            account_holder_name=validated_data['account_holder_name'],
+            ifsc_code=validated_data['ifsc_code'].upper(),
+            bank_name=validated_data['bank_name'],
+            branch_name=validated_data.get('branch_name', ''),
+            account_type=validated_data['account_type'],
+            is_primary=validated_data.get('is_primary', False),
+            nickname=validated_data.get('nickname', ''),
+        )
+        # Set encrypted account number
+        account.account_number = validated_data['account_number']
+        account.save()
+        return account
+
+
+class UserBankAccountUpdateSerializer(serializers.Serializer):
+    """Serializer for updating bank accounts (limited fields)."""
+    
+    nickname = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    is_primary = serializers.BooleanField(required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+# =============================================================================
+# CARD SERIALIZERS
+# =============================================================================
+
+class UserCardSerializer(serializers.ModelSerializer):
+    """Serializer for user cards."""
+    
+    card_number_masked = serializers.CharField(read_only=True)
+    expiry_display = serializers.CharField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = UserCard
+        fields = [
+            'id', 'card_number_masked', 'card_last_four', 'card_holder_name',
+            'expiry_display', 'is_expired',
+            'card_type', 'card_network', 'issuing_bank',
+            'is_verified', 'verification_status',
+            'is_primary', 'is_active', 'nickname',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'card_last_four', 'is_verified', 'verification_status', 'created_at', 'updated_at']
+
+
+class UserCardCreateSerializer(serializers.Serializer):
+    """Serializer for adding cards."""
+    
+    card_number = serializers.CharField(max_length=19, min_length=13)
+    card_holder_name = serializers.CharField(max_length=200)
+    expiry_month = serializers.CharField(max_length=2, min_length=2)
+    expiry_year = serializers.CharField(max_length=4, min_length=4)
+    card_type = serializers.ChoiceField(choices=['DEBIT', 'CREDIT', 'PREPAID'], default='DEBIT')
+    card_network = serializers.ChoiceField(
+        choices=['VISA', 'MASTERCARD', 'RUPAY', 'AMEX', 'DINERS'],
+        required=False,
+        allow_blank=True
+    )
+    issuing_bank = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    is_primary = serializers.BooleanField(default=False)
+    nickname = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    
+    def validate_card_number(self, value):
+        # Remove spaces and dashes
+        clean = value.replace(' ', '').replace('-', '')
+        if not clean.isdigit():
+            raise serializers.ValidationError('Card number must contain only digits.')
+        if len(clean) < 13 or len(clean) > 19:
+            raise serializers.ValidationError('Card number must be between 13 and 19 digits.')
+        return clean
+    
+    def validate_expiry_month(self, value):
+        try:
+            month = int(value)
+            if month < 1 or month > 12:
+                raise serializers.ValidationError('Expiry month must be between 01 and 12.')
+        except ValueError:
+            raise serializers.ValidationError('Invalid expiry month.')
+        return value.zfill(2)
+    
+    def validate_expiry_year(self, value):
+        from datetime import datetime
+        try:
+            year = int(value)
+            current_year = datetime.now().year
+            if year < current_year or year > current_year + 20:
+                raise serializers.ValidationError('Invalid expiry year.')
+        except ValueError:
+            raise serializers.ValidationError('Invalid expiry year.')
+        return value
+    
+    def validate(self, attrs):
+        # Check if card is not expired
+        from datetime import datetime
+        current = datetime.now()
+        exp_year = int(attrs['expiry_year'])
+        exp_month = int(attrs['expiry_month'])
+        
+        if exp_year < current.year or (exp_year == current.year and exp_month < current.month):
+            raise serializers.ValidationError({'expiry_month': 'Card is expired.'})
+        
+        return attrs
+    
+    def create(self, validated_data):
+        user = self.context['request'].user
+        
+        card = UserCard(
+            user=user,
+            card_holder_name=validated_data['card_holder_name'],
+            expiry_month=validated_data['expiry_month'],
+            expiry_year=validated_data['expiry_year'],
+            card_type=validated_data['card_type'],
+            card_network=validated_data.get('card_network', ''),
+            issuing_bank=validated_data.get('issuing_bank', ''),
+            is_primary=validated_data.get('is_primary', False),
+            nickname=validated_data.get('nickname', ''),
+        )
+        # Set encrypted card number
+        card.card_number = validated_data['card_number']
+        card.save()
+        return card
+
+
+class UserCardUpdateSerializer(serializers.Serializer):
+    """Serializer for updating cards (limited fields)."""
+    
+    nickname = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    is_primary = serializers.BooleanField(required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+# =============================================================================
+# MPIN SERIALIZERS
+# =============================================================================
+
+class MPINSetupSerializer(serializers.Serializer):
+    """Serializer for MPIN setup."""
+    
+    mpin = serializers.CharField(min_length=6, max_length=6)
+    confirm_mpin = serializers.CharField(min_length=6, max_length=6)
+    password = serializers.CharField(write_only=True)  # Require password to set MPIN
+    
+    def validate_mpin(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('MPIN must contain only digits.')
+        return value
+    
+    def validate(self, attrs):
+        if attrs['mpin'] != attrs['confirm_mpin']:
+            raise serializers.ValidationError({'confirm_mpin': 'MPINs do not match.'})
+        
+        # Verify user password
+        user = self.context['request'].user
+        if not user.check_password(attrs['password']):
+            raise serializers.ValidationError({'password': 'Invalid password.'})
+        
+        return attrs
+
+
+class MPINVerifySerializer(serializers.Serializer):
+    """Serializer for MPIN verification."""
+    
+    mpin = serializers.CharField(min_length=6, max_length=6)
+    
+    def validate_mpin(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('MPIN must contain only digits.')
+        return value
+
+
+class MPINChangeSerializer(serializers.Serializer):
+    """Serializer for changing MPIN."""
+    
+    current_mpin = serializers.CharField(min_length=6, max_length=6)
+    new_mpin = serializers.CharField(min_length=6, max_length=6)
+    confirm_mpin = serializers.CharField(min_length=6, max_length=6)
+    
+    def validate_current_mpin(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('MPIN must contain only digits.')
+        return value
+    
+    def validate_new_mpin(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('MPIN must contain only digits.')
+        return value
+    
+    def validate(self, attrs):
+        if attrs['new_mpin'] != attrs['confirm_mpin']:
+            raise serializers.ValidationError({'confirm_mpin': 'New MPINs do not match.'})
+        
+        if attrs['current_mpin'] == attrs['new_mpin']:
+            raise serializers.ValidationError({'new_mpin': 'New MPIN must be different from current MPIN.'})
+        
+        return attrs
+
+
+# =============================================================================
+# PAYMENT GATEWAY SERIALIZERS
+# =============================================================================
+
+class PaymentGatewaySerializer(serializers.ModelSerializer):
+    """Serializer for payment gateways."""
+    
+    class Meta:
+        model = PaymentGateway
+        fields = [
+            'id', 'name', 'code', 'gateway_type', 'description', 'logo',
+            'min_amount', 'max_amount', 'transaction_fee', 'fee_type',
+            'is_active', 'display_order'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# =============================================================================
+# TRANSACTION LOG SERIALIZERS
+# =============================================================================
+
+class TransactionLogSerializer(serializers.ModelSerializer):
+    """Serializer for transaction logs."""
+    
+    gateway_name = serializers.CharField(source='payment_gateway.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = TransactionLog
+        fields = [
+            'id', 'transaction_id', 'transaction_type', 'status',
+            'amount', 'fee', 'total_amount', 'currency',
+            'payment_method', 'gateway_name',
+            'description', 'failure_reason',
+            'initiated_at', 'completed_at'
+        ]
+        read_only_fields = ['id', 'transaction_id', 'initiated_at', 'completed_at']
+
+
+class TransactionLogDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for transaction logs."""
+    
+    gateway_name = serializers.CharField(source='payment_gateway.name', read_only=True, allow_null=True)
+    source_account_masked = serializers.SerializerMethodField()
+    source_card_masked = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TransactionLog
+        fields = [
+            'id', 'transaction_id', 'transaction_type', 'status',
+            'amount', 'fee', 'total_amount', 'currency',
+            'payment_method', 'gateway_name',
+            'source_account_masked', 'source_card_masked',
+            'destination_name', 'destination_ifsc',
+            'gateway_transaction_id', 'gateway_order_id',
+            'description', 'remarks',
+            'failure_code', 'failure_reason',
+            'initiated_at', 'completed_at'
+        ]
+        read_only_fields = '__all__'
+    
+    def get_source_account_masked(self, obj):
+        if obj.source_bank_account:
+            return obj.source_bank_account.account_number_masked
+        return None
+    
+    def get_source_card_masked(self, obj):
+        if obj.source_card:
+            return obj.source_card.card_number_masked
+        return None
+
+
+# =============================================================================
+# IFSC VERIFICATION SERIALIZER
+# =============================================================================
+
+class IFSCVerifySerializer(serializers.Serializer):
+    """Serializer for IFSC verification request."""
+    
+    ifsc_code = serializers.CharField(max_length=11, min_length=11)
+    
+    def validate_ifsc_code(self, value):
+        import re
+        value = value.upper()
+        if not re.match(r'^[A-Z]{4}0[A-Z0-9]{6}$', value):
+            raise serializers.ValidationError('Invalid IFSC code format. Expected: ABCD0XXXXXX')
+        return value
+
+
+class IFSCResponseSerializer(serializers.Serializer):
+    """Serializer for IFSC verification response."""
+    
+    ifsc_code = serializers.CharField()
+    bank_name = serializers.CharField()
+    branch_name = serializers.CharField()
+    address = serializers.CharField(allow_blank=True)
+    city = serializers.CharField(allow_blank=True)
+    state = serializers.CharField(allow_blank=True)
+    contact = serializers.CharField(allow_blank=True)
+
+
+# =============================================================================
+# MONEY TRANSFER SERIALIZERS
+# =============================================================================
+
+class MoneyTransferSerializer(serializers.Serializer):
+    """Serializer for money transfer request."""
+    
+    source_bank_account_id = serializers.IntegerField()
+    beneficiary_name = serializers.CharField(max_length=200)
+    beneficiary_account_number = serializers.CharField(max_length=18, min_length=9)
+    beneficiary_ifsc = serializers.CharField(max_length=11, min_length=11)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    remarks = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    mpin = serializers.CharField(min_length=6, max_length=6)  # Require MPIN for transfer
+    
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Amount must be greater than 0.')
+        return value
+    
+    def validate_beneficiary_account_number(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('Account number must contain only digits.')
+        return value
+    
+    def validate_beneficiary_ifsc(self, value):
+        import re
+        value = value.upper()
+        if not re.match(r'^[A-Z]{4}0[A-Z0-9]{6}$', value):
+            raise serializers.ValidationError('Invalid IFSC code format.')
+        return value
+    
+    def validate_mpin(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('MPIN must contain only digits.')
+        return value
+

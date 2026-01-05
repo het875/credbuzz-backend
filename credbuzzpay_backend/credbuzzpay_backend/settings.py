@@ -305,4 +305,3 @@ OTP_MAX_ATTEMPTS = 3  # Max verification attempts before OTP expires
 # Set to False to temporarily bypass mobile OTP verification (only email OTP required)
 # Set to True to require both email and mobile OTP verification
 REQUIRE_MOBILE_VERIFICATION = os.getenv('REQUIRE_MOBILE_VERIFICATION', 'False').lower() in ('true', '1', 'yes')
-

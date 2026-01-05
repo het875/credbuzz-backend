@@ -1,0 +1,373 @@
+{
+  "info": {
+    "name": "CredBuzz Bill Pay Expansion APIs",
+    "description": "Collection for testing new Bill Pay features including Bank Accounts, Cards, MPIN, Payment Gateways, IFSC, Transactions, and Money Transfer",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Get Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.tokens) {",
+                  "    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+                  "    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"identifier\": \"your_email@example.com\",\n    \"password\": \"your_password\"\n}"
+            },
+            "url": "{{base_url}}/auth-user/login/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Accounts",
+      "item": [
+        {
+          "name": "List Bank Accounts",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/bank-accounts/",
+            "description": "Get all bank accounts for the authenticated user"
+          }
+        },
+        {
+          "name": "Add Bank Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"account_holder_name\": \"John Doe\",\n    \"account_number\": \"123456789012\",\n    \"confirm_account_number\": \"123456789012\",\n    \"ifsc_code\": \"SBIN0001234\",\n    \"bank_name\": \"State Bank of India\",\n    \"branch_name\": \"Mumbai Main\",\n    \"account_type\": \"SAVINGS\",\n    \"is_primary\": false,\n    \"nickname\": \"Salary Account\"\n}"
+            },
+            "url": "{{base_url}}/bills/bank-accounts/",
+            "description": "Add a new bank account"
+          }
+        },
+        {
+          "name": "Get Bank Account Details",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/bank-accounts/1/",
+            "description": "Get details of a specific bank account"
+          }
+        },
+        {
+          "name": "Update Bank Account",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nickname\": \"Updated Nickname\",\n    \"is_primary\": true\n}"
+            },
+            "url": "{{base_url}}/bills/bank-accounts/1/",
+            "description": "Update bank account nickname or primary status"
+          }
+        },
+        {
+          "name": "Verify Bank Account",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bills/bank-accounts/1/verify/",
+            "description": "Verify bank account ownership (mock penny drop)"
+          }
+        },
+        {
+          "name": "Delete Bank Account",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/bills/bank-accounts/1/",
+            "description": "Soft delete a bank account"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cards",
+      "item": [
+        {
+          "name": "List Cards",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/cards/",
+            "description": "Get all cards for the authenticated user"
+          }
+        },
+        {
+          "name": "Add Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"card_number\": \"4111111111111111\",\n    \"card_holder_name\": \"John Doe\",\n    \"expiry_month\": \"12\",\n    \"expiry_year\": \"2028\",\n    \"card_type\": \"DEBIT\",\n    \"card_network\": \"VISA\",\n    \"issuing_bank\": \"HDFC Bank\",\n    \"is_primary\": false,\n    \"nickname\": \"Primary Card\"\n}"
+            },
+            "url": "{{base_url}}/bills/cards/",
+            "description": "Add a new card (card number will be encrypted)"
+          }
+        },
+        {
+          "name": "Get Card Details",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/cards/1/",
+            "description": "Get details of a specific card"
+          }
+        },
+        {
+          "name": "Update Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nickname\": \"Updated Card Name\",\n    \"is_primary\": true\n}"
+            },
+            "url": "{{base_url}}/bills/cards/1/",
+            "description": "Update card nickname or primary status"
+          }
+        },
+        {
+          "name": "Delete Card",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/bills/cards/1/",
+            "description": "Soft delete a card"
+          }
+        }
+      ]
+    },
+    {
+      "name": "MPIN",
+      "item": [
+        {
+          "name": "Check MPIN Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/mpin/setup/",
+            "description": "Check if user has MPIN set up"
+          }
+        },
+        {
+          "name": "Setup MPIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mpin\": \"123456\",\n    \"confirm_mpin\": \"123456\",\n    \"password\": \"your_account_password\"\n}"
+            },
+            "url": "{{base_url}}/bills/mpin/setup/",
+            "description": "Set up 6-digit MPIN (requires account password)"
+          }
+        },
+        {
+          "name": "Verify MPIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mpin\": \"123456\"\n}"
+            },
+            "url": "{{base_url}}/bills/mpin/verify/",
+            "description": "Verify MPIN (locked after 3 failed attempts for 30 min)"
+          }
+        },
+        {
+          "name": "Change MPIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"current_mpin\": \"123456\",\n    \"new_mpin\": \"654321\",\n    \"confirm_mpin\": \"654321\"\n}"
+            },
+            "url": "{{base_url}}/bills/mpin/change/",
+            "description": "Change existing MPIN"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Gateways",
+      "item": [
+        {
+          "name": "List Payment Gateways",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/gateways/",
+            "description": "Get all active payment gateways"
+          }
+        },
+        {
+          "name": "List Gateways by Type",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/gateways/?type=UPI",
+            "description": "Filter gateways by type (UPI, CARD, NETBANKING, WALLET)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "IFSC Verification",
+      "item": [
+        {
+          "name": "Verify IFSC - SBI",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/ifsc/SBIN0001234/",
+            "description": "Verify IFSC code and get bank details (SBI)"
+          }
+        },
+        {
+          "name": "Verify IFSC - HDFC",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/ifsc/HDFC0001234/",
+            "description": "Verify IFSC code and get bank details (HDFC)"
+          }
+        },
+        {
+          "name": "Verify IFSC - Invalid",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/ifsc/INVALID/",
+            "description": "Test invalid IFSC format (should return 400)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transaction Logs",
+      "item": [
+        {
+          "name": "List All Transactions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/transactions/",
+            "description": "Get all transactions for the user"
+          }
+        },
+        {
+          "name": "List Transactions with Filters",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/transactions/?type=MONEY_TRANSFER&status=SUCCESS&page=1&page_size=10",
+            "description": "Filter transactions by type, status, with pagination"
+          }
+        },
+        {
+          "name": "Get Transaction Details",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bills/transactions/TXN20251210123456ABC/",
+            "description": "Get details of a specific transaction"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Money Transfer",
+      "item": [
+        {
+          "name": "Transfer Money",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"source_bank_account_id\": 1,\n    \"beneficiary_name\": \"Jane Doe\",\n    \"beneficiary_account_number\": \"987654321012\",\n    \"beneficiary_ifsc\": \"HDFC0001234\",\n    \"amount\": 5000.00,\n    \"remarks\": \"Rent payment\",\n    \"mpin\": \"123456\"\n}"
+            },
+            "url": "{{base_url}}/bills/transfer/",
+            "description": "Transfer money (requires verified bank account and MPIN)"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3253 @@
+{
+	"info": {
+		"_postman_id": "credbuzz-rbac-collection",
+		"name": "CredBuzz Backend API",
+		"description": "Complete API collection for CredBuzz Backend including User Authentication, RBAC (Role-Based Access Control), KYC Verification, and Bill Payment endpoints.\n\n## Registration Flow\n1. Register with first_name, middle_name, last_name, email, phone_number, password\n2. Verify Email OTP\n3. Verify Phone OTP\n4. Login (END_USER requires verified email & phone)\n\n## Dynamic Login\nLogin uses a single `identifier` field that auto-detects:\n- **Email**: Contains @ (e.g., user@example.com)\n- **Phone**: Starts with + (e.g., +1234567890)\n- **User Code**: 6 alphanumeric chars (e.g., CGX0R0)\n- **Username**: Default fallback\n\n## Security Features\n- **Rate Limiting**: Login (10/min), Registration (5/hour), OTP (5/min), KYC Upload (20/hour)\n- **Single Session Login**: Logging in invalidates all previous sessions\n- **Progressive Lockout**: 5 attempts → 2min → 5min → 10min → 30min → 60min → blocked\n- **Session Timeout**: 30 minutes inactivity (like bank apps)\n- **Security Headers**: XSS, HSTS, Content-Type, X-Frame\n- **CORS Protection**: Configured for allowed origins\n\n## User Roles\n- **DEVELOPER**: System developer (highest privilege) - Created via CLI\n- **SUPER_ADMIN**: Super administrator - Created via CLI with Developer authorization\n- **ADMIN**: Administrator - Register + role assignment by Super Admin\n- **CLIENT**: Client user - Register + role assignment by Admin+\n- **END_USER**: End user (default) - Self-registration\n\n## KYC Flow\n1. Start KYC → 2. Aadhaar Details → 3. Aadhaar Images → 4. PAN Details → 5. PAN Image → 6. Business Details → 7. Verification Images → 8. Bank Details → 9. Submit for Review\n\n## KYC Security\n- Aadhaar, PAN, Bank Account numbers are encrypted\n- Masked in responses (XXXX-XXXX-9012)\n- Max file size: 5MB\n- Documents stored per user in media/kyc/{user_code}/\n\n## Bill Pay Features\n- **12 Categories**: Electricity, Mobile, DTH, Broadband, Water, Gas, Insurance, Loan, Credit Card, FASTag, Landline, Municipal\n- **32+ Billers**: Major providers across all categories\n- **Fetch Bill**: Get bill details before payment\n- **Pay Bill**: Process bill payments\n- **Payment History**: Track all transactions\n- **Saved Billers**: Quick access to frequent billers\n\n## New Features\n- User Activity Logs\n- Full Profile API with KYC Status\n- Access Management APIs (assign/revoke access)\n- Bill Payment System (BBPS compliant)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_code",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "dev_access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "superadmin_access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "kyc_application_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "registered_email",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "email_otp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "phone_otp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "target_user_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "category_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "biller_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "payment_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "saved_biller_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "🚀 Quick Start",
+			"item": [
+				{
+					"name": "1. Register New User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('registered_email', jsonData.data.user.email);",
+									"    if (jsonData.data.test_otps) {",
+									"        pm.collectionVariables.set('email_otp', jsonData.data.test_otps.email_otp);",
+									"        pm.collectionVariables.set('phone_otp', jsonData.data.test_otps.phone_otp);",
+									"    }",
+									"    console.log('✅ User registered! Run steps 2 & 3 to verify OTPs');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Test\",\n    \"middle_name\": \"\",\n    \"last_name\": \"User\",\n    \"email\": \"testuser@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"Test@1234\",\n    \"confirm_password\": \"Test@1234\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/register/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "register", ""]
+						},
+						"description": "**STEP 1:** Register a new user. OTPs are auto-saved to variables."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Verify Email OTP",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"{{email_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "verify-registration-otp", ""]
+						},
+						"description": "**STEP 2:** Verify email OTP"
+					},
+					"response": []
+				},
+				{
+					"name": "3. Verify Phone OTP",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"PHONE\",\n    \"otp_code\": \"{{phone_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "verify-registration-otp", ""]
+						},
+						"description": "**STEP 3:** Verify phone OTP. After this, user can login!"
+					},
+					"response": []
+				},
+				{
+					"name": "4. Login as Registered User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    console.log('✅ Login successful! Token saved.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"{{registered_email}}\",\n    \"password\": \"Test@1234\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "**STEP 4:** Login with verified user"
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Developer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('dev_access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    console.log('Developer tokens saved! User code:', jsonData.data.user.user_code);",
+									"    console.log('App access:', jsonData.data.app_access);",
+									"    console.log('Feature access:', jsonData.data.feature_access);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"dev@credbuzz.com\",\n    \"password\": \"Developer@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "Login as Developer using dynamic identifier. Response includes app_access and feature_access arrays.\n\n**Identifier Options:**\n- Email: dev@credbuzz.com\n- Username: developer\n- User Code: CGX0R0"
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Super Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('superadmin_access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    console.log('Super Admin tokens saved! User code:', jsonData.data.user.user_code);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"superadmin@credbuzz.com\",\n    \"password\": \"SuperAdmin@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "Login as Super Admin using dynamic identifier.\n\n**Identifier Options:**\n- Email: superadmin@credbuzz.com\n- Username: superadmin\n- User Code: VYO541"
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Profile (with user_code & user_role)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile", ""]
+						},
+						"description": "Get current user's profile including user_code and user_role fields."
+					},
+					"response": []
+				}
+			],
+			"description": "Quick start endpoints for testing. Run steps 1-4 to test the complete registration flow.\n\n**New User Registration Flow:**\n1. Register → 2. Verify Email OTP → 3. Verify Phone OTP → 4. Login\n\n**Test Accounts:**\n- Developer: dev@credbuzz.com / Developer@123 (CGX0R0)\n- Super Admin: superadmin@credbuzz.com / SuperAdmin@123 (VYO541)"
+		},
+		{
+			"name": "🔐 Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('registered_email', jsonData.data.user.email);",
+									"    if (jsonData.data.test_otps) {",
+									"        pm.collectionVariables.set('email_otp', jsonData.data.test_otps.email_otp);",
+									"        pm.collectionVariables.set('phone_otp', jsonData.data.test_otps.phone_otp);",
+									"        console.log('Email OTP:', jsonData.data.test_otps.email_otp);",
+									"        console.log('Phone OTP:', jsonData.data.test_otps.phone_otp);",
+									"    }",
+									"    console.log('User registered! Email:', jsonData.data.user.email);",
+									"    console.log('Verification required - Email:', jsonData.data.verification_required.email);",
+									"    console.log('Verification required - Phone:', jsonData.data.verification_required.phone);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"John\",\n    \"middle_name\": \"K\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john@example.com\",\n    \"phone_number\": \"9876543210\",\n    \"password\": \"SecurePass123!\",\n    \"confirm_password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/register/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "register", ""]
+						},
+						"description": "Register a new user account.\n\n**Required Fields:**\n- first_name, last_name, email, phone_number, password, confirm_password\n\n**Optional Fields:**\n- middle_name\n\n**After Registration:**\n- OTPs sent to email AND phone\n- User must verify both before login (for END_USER role)\n- test_otps returned in response for development testing\n\n**User is assigned:**\n- user_role: END_USER (default)\n- user_code: Auto-generated 6-character unique code"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Registration OTP (Email)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    console.log('Email verified:', jsonData.data.is_email_verified);",
+									"    console.log('Phone verified:', jsonData.data.is_phone_verified);",
+									"    console.log('Fully verified:', jsonData.data.is_fully_verified);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\",\n    \"otp_code\": \"{{email_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "verify-registration-otp", ""]
+						},
+						"description": "Verify Email OTP after registration.\n\n**otp_type options:**\n- EMAIL: Verify email address\n- PHONE: Verify phone number"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Registration OTP (Phone)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    console.log('Email verified:', jsonData.data.is_email_verified);",
+									"    console.log('Phone verified:', jsonData.data.is_phone_verified);",
+									"    console.log('Fully verified:', jsonData.data.is_fully_verified);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"PHONE\",\n    \"otp_code\": \"{{phone_otp}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/verify-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "verify-registration-otp", ""]
+						},
+						"description": "Verify Phone OTP after registration.\n\n**Note:** END_USER must verify BOTH email and phone before login."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Registration OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.test_otp) {",
+									"    var otpType = JSON.parse(pm.request.body.raw).otp_type;",
+									"    if (otpType === 'EMAIL') {",
+									"        pm.collectionVariables.set('email_otp', jsonData.data.test_otp);",
+									"    } else {",
+									"        pm.collectionVariables.set('phone_otp', jsonData.data.test_otp);",
+									"    }",
+									"    console.log('New OTP:', jsonData.data.test_otp);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"otp_type\": \"EMAIL\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/resend-registration-otp/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "resend-registration-otp", ""]
+						},
+						"description": "Resend OTP for registration verification.\n\n**otp_type options:**\n- EMAIL: Resend email OTP\n- PHONE: Resend phone OTP"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.tokens.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"    pm.collectionVariables.set('user_code', jsonData.data.user.user_code);",
+									"    console.log('Tokens saved! User code:', jsonData.data.user.user_code);",
+									"    console.log('App access:', jsonData.data.app_access);",
+									"    console.log('Feature access:', jsonData.data.feature_access);",
+									"    console.log('Session timeout:', jsonData.data.session.inactivity_timeout_minutes, 'minutes');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"identifier\": \"user@example.com\",\n    \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "login", ""]
+						},
+						"description": "**Dynamic Login** - Single identifier field auto-detects login type.\n\n**identifier field accepts:**\n- Email: user@example.com (contains @)\n- Phone: +1234567890 (starts with +)\n- User Code: ABC123 (6 alphanumeric chars)\n- Username: johndoe (default)\n\n**Response includes:**\n- app_access: Array of app IDs user can access\n- feature_access: Array of feature IDs user can access\n- session.inactivity_timeout_minutes: 30 min timeout\n\n**Security:**\n- 5 failed attempts → progressive lockout\n- 30 min inactivity → auto logout"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "logout", ""]
+						},
+						"description": "Logout and invalidate current session."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.access_token) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.access_token);",
+									"    console.log('Access token refreshed!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/refresh-token/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "refresh-token", ""]
+						},
+						"description": "Get a new access token using the refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/forgot-password/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "forgot-password", ""]
+						},
+						"description": "Request a password reset token."
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"paste-reset-token-here\",\n    \"new_password\": \"NewSecurePass123!\",\n    \"confirm_password\": \"NewSecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/reset-password/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "reset-password", ""]
+						},
+						"description": "Reset password using the reset token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile", ""]
+						},
+						"description": "Get the authenticated user's basic profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Full Profile (with KYC & Access)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile-full/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile-full", ""]
+						},
+						"description": "Get comprehensive profile including:\n- User details (name, email, phone, verification status)\n- KYC status (application_id, status, mega_step, current_step, completion %)\n- App access (apps user can access with permissions)\n- Feature access (features user can access with permissions)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Current User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"John Updated\",\n    \"last_name\": \"Doe Updated\",\n    \"phone_number\": \"+9876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "profile", ""]
+						},
+						"description": "Update the authenticated user's profile."
+					},
+					"response": []
+				}
+			],
+			"description": "User authentication endpoints including registration, login, logout, and password management."
+		},
+		{
+			"name": "👥 Users Management",
+			"item": [
+				{
+					"name": "List All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", ""]
+						},
+						"description": "Get list of all active users (excludes soft-deleted users by default)."
+					},
+					"response": []
+				},
+				{
+					"name": "List All Users (Include Deleted)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/?include_deleted=true",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", ""],
+							"query": [
+								{
+									"key": "include_deleted",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get list of all users including soft-deleted ones."
+					},
+					"response": []
+				},
+				{
+					"name": "List Only Deleted Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/?is_deleted=true",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", ""],
+							"query": [
+								{
+									"key": "is_deleted",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get list of only soft-deleted users."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/1/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "1", ""]
+						},
+						"description": "Get details of a specific user (only active users, not soft-deleted)."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Updated Name\",\n    \"last_name\": \"Updated Last\",\n    \"phone_number\": \"+1111111111\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/1/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "1", ""]
+						},
+						"description": "Update a user's information."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Role",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_role\": \"ADMIN\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/3/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "3", ""]
+						},
+						"description": "Update a user's role. Valid roles: DEVELOPER, SUPER_ADMIN, ADMIN, CLIENT, END_USER. Requires Admin+ permission."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/?search=john",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", ""],
+							"query": [
+								{
+									"key": "search",
+									"value": "john"
+								}
+							]
+						},
+						"description": "Search users by email, username, first_name, last_name, or user_code."
+					},
+					"response": []
+				},
+				{
+					"name": "Soft Delete User (DELETE)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/3/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "3", ""]
+						},
+						"description": "**SOFT DELETE** - Marks user as deleted (is_deleted=True) without removing from database.\n\n- Sets is_deleted=True\n- Sets is_active=False\n- Records deleted_at timestamp\n- Invalidates all sessions\n- User can be restored later\n\n**Note:** Cannot delete your own account."
+					},
+					"response": []
+				},
+				{
+					"name": "Hard Delete User (Permanent)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/3/hard-delete/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "3", "hard-delete", ""]
+						},
+						"description": "**HARD DELETE** - Permanently removes user from database.\n\n⚠️ **WARNING:** This action CANNOT be undone!\n\n- Completely removes user record\n- Removes all related data (sessions, login attempts, etc.)\n- User cannot be recovered\n\n**Note:** Cannot delete your own account."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Deleted User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/3/restore/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "3", "restore", ""]
+						},
+						"description": "**RESTORE** - Restores a soft-deleted user.\n\n- Sets is_deleted=False\n- Sets is_active=True\n- Clears deleted_at timestamp\n- User can login again"
+					},
+					"response": []
+				},
+				{
+					"name": "Activate User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/3/activate/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "3", "activate", ""]
+						},
+						"description": "Activate a deactivated user account."
+					},
+					"response": []
+				},
+				{
+					"name": "Deactivate User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/users/3/deactivate/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "users", "3", "deactivate", ""]
+						},
+						"description": "Deactivate a user account (different from delete - just sets is_active=False)."
+					},
+					"response": []
+				}
+			],
+			"description": "User management CRUD operations including soft delete, hard delete, and restore."
+		},
+		{
+			"name": "📊 User Activity Logs",
+			"item": [
+				{
+					"name": "Get All Activity Logs (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/activity-logs/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "activity-logs", ""]
+						},
+						"description": "Get all user activity logs. Requires Admin+ role.\n\n**Activity Types:**\n- LOGIN, LOGOUT\n- PROFILE_UPDATE\n- PASSWORD_CHANGE, PASSWORD_RESET\n- KYC_SUBMIT, KYC_APPROVED, KYC_REJECTED\n- ACCOUNT_LOCKED, ACCOUNT_UNLOCKED"
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Activity Logs by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/activity-logs/?user_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "activity-logs", ""],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get activity logs for a specific user."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Activity Logs by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/activity-logs/?activity_type=LOGIN",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "activity-logs", ""],
+							"query": [
+								{
+									"key": "activity_type",
+									"value": "LOGIN"
+								}
+							]
+						},
+						"description": "Get activity logs filtered by activity type."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Activity Logs by Date Range",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/activity-logs/?start_date=2024-01-01&end_date=2024-12-31&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "activity-logs", ""],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2024-01-01"
+								},
+								{
+									"key": "end_date",
+									"value": "2024-12-31"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get activity logs within a date range."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Activity",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/my-activity/",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "my-activity", ""]
+						},
+						"description": "Get current user's activity logs. Available to all authenticated users."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Activity (with Limit)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth-user/my-activity/?activity_type=LOGIN&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["auth-user", "my-activity", ""],
+							"query": [
+								{
+									"key": "activity_type",
+									"value": "LOGIN"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get current user's activity logs with filters."
+					},
+					"response": []
+				}
+			],
+			"description": "User activity logging endpoints. Track user actions like login, logout, profile updates, KYC submissions, etc."
+		},
+		{
+			"name": "🎭 RBAC - Roles",
+			"item": [
+				{
+					"name": "List All Roles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""]
+						},
+						"description": "Get list of all user roles."
+					},
+					"response": []
+				},
+				{
+					"name": "List Roles by Level",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/?level=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""],
+							"query": [
+								{
+									"key": "level",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get roles filtered by hierarchy level."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Custom Manager\",\n    \"code\": \"CUSTOM_MANAGER\",\n    \"level\": 3,\n    \"description\": \"Custom manager role with limited access\",\n    \"is_system_role\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", ""]
+						},
+						"description": "Create a new user role. Requires Super Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Role Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "1", ""]
+						},
+						"description": "Get details of a specific role including apps and features."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Role Name\",\n    \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/6/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "6", ""]
+						},
+						"description": "Update a role. Cannot update roles with equal or higher privilege."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Role",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/6/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "6", ""]
+						},
+						"description": "Delete a role. System roles cannot be deleted."
+					},
+					"response": []
+				},
+				{
+					"name": "Initialize Default Roles",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/roles/initialize/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "roles", "initialize", ""]
+						},
+						"description": "Initialize default system roles (Developer, Super Admin, Admin, Client, End User). Requires Developer role. Safe to call multiple times - only creates roles that don't exist."
+					},
+					"response": []
+				}
+			],
+			"description": "User role management endpoints."
+		},
+		{
+			"name": "📱 RBAC - Apps",
+			"item": [
+				{
+					"name": "List All Apps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""]
+						},
+						"description": "Get list of all applications."
+					},
+					"response": []
+				},
+				{
+					"name": "List Root Apps Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/?root_only=true",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""],
+							"query": [
+								{
+									"key": "root_only",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get only root-level apps (no parent)."
+					},
+					"response": []
+				},
+				{
+					"name": "Create App",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Reports\",\n    \"code\": \"REPORTS\",\n    \"description\": \"Reporting and analytics module\",\n    \"icon\": \"fa-chart-bar\",\n    \"display_order\": 5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", ""]
+						},
+						"description": "Create a new application. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get App Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", "1", ""]
+						},
+						"description": "Get details of a specific app including features and roles with access."
+					},
+					"response": []
+				},
+				{
+					"name": "Update App",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated App Name\",\n    \"description\": \"Updated description\",\n    \"icon\": \"fa-cog\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", "1", ""]
+						},
+						"description": "Update an app. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete App",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/apps/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "apps", "1", ""]
+						},
+						"description": "Delete (deactivate) an app. Requires Developer role."
+					},
+					"response": []
+				}
+			],
+			"description": "Application/module management endpoints."
+		},
+		{
+			"name": "⚡ RBAC - Features",
+			"item": [
+				{
+					"name": "List All Features",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""]
+						},
+						"description": "Get list of all features."
+					},
+					"response": []
+				},
+				{
+					"name": "List Features by App ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/?app_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""],
+							"query": [
+								{
+									"key": "app_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get features filtered by app ID."
+					},
+					"response": []
+				},
+				{
+					"name": "List Features by App Code",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/?app_code=USER_MGMT",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								}
+							]
+						},
+						"description": "Get features filtered by app code."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Feature",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app\": 1,\n    \"name\": \"Delete User\",\n    \"code\": \"DELETE_USER\",\n    \"description\": \"Delete users from the system\",\n    \"feature_type\": \"ACTION\",\n    \"display_order\": 4\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/features/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", ""]
+						},
+						"description": "Create a new feature. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Feature Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", "1", ""]
+						},
+						"description": "Get details of a specific feature."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Feature",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Feature Name\",\n    \"description\": \"Updated description\",\n    \"feature_type\": \"VIEW\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/features/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", "1", ""]
+						},
+						"description": "Update a feature. Requires Developer role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Feature",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/features/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "features", "1", ""]
+						},
+						"description": "Delete (deactivate) a feature. Requires Developer role."
+					},
+					"response": []
+				}
+			],
+			"description": "Feature management endpoints."
+		},
+		{
+			"name": "🔗 RBAC - Role-App Mappings",
+			"item": [
+				{
+					"name": "List Role-App Mappings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", ""]
+						},
+						"description": "Get list of all role-app mappings."
+					},
+					"response": []
+				},
+				{
+					"name": "List Mappings by Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/?role_id=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", ""],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get mappings filtered by role ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign App to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role\": 3,\n    \"app\": 1,\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": true,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", ""]
+						},
+						"description": "Assign an app to a role with CRUD permissions. Requires Super Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Assign Apps to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_id\": 3,\n    \"app_ids\": [1, 2, 3],\n    \"can_view\": true,\n    \"can_create\": false,\n    \"can_update\": false,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/bulk/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", "bulk", ""]
+						},
+						"description": "Bulk assign multiple apps to a role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role-App Mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": true,\n    \"can_delete\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", "1", ""]
+						},
+						"description": "Update CRUD permissions for a role-app mapping."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke App from Role",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-app-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-app-mappings", "1", ""]
+						},
+						"description": "Revoke app access from a role."
+					},
+					"response": []
+				}
+			],
+			"description": "Role to App mapping endpoints."
+		},
+		{
+			"name": "🔗 RBAC - Role-Feature Mappings",
+			"item": [
+				{
+					"name": "List Role-Feature Mappings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", ""]
+						},
+						"description": "Get list of all role-feature mappings."
+					},
+					"response": []
+				},
+				{
+					"name": "List Mappings by Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/?role_id=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", ""],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get mappings filtered by role ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Feature to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role\": 3,\n    \"feature\": 1,\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": false,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", ""]
+						},
+						"description": "Assign a feature to a role with CRUD permissions."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Assign Features to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_id\": 3,\n    \"feature_ids\": [1, 2, 3],\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": false,\n    \"can_delete\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/bulk/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", "bulk", ""]
+						},
+						"description": "Bulk assign multiple features to a role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role-Feature Mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"can_view\": true,\n    \"can_create\": true,\n    \"can_update\": true,\n    \"can_delete\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", "1", ""]
+						},
+						"description": "Update CRUD permissions for a role-feature mapping."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Feature from Role",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/role-feature-mappings/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "role-feature-mappings", "1", ""]
+						},
+						"description": "Revoke feature access from a role."
+					},
+					"response": []
+				}
+			],
+			"description": "Role to Feature mapping endpoints."
+		},
+		{
+			"name": "👤 RBAC - User Role Assignments",
+			"item": [
+				{
+					"name": "List User Role Assignments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""]
+						},
+						"description": "Get list of all user role assignments."
+					},
+					"response": []
+				},
+				{
+					"name": "List Assignments by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/?user_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get assignments filtered by user ID."
+					},
+					"response": []
+				},
+				{
+					"name": "List Assignments by Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/?role_id=3",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Get assignments filtered by role ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Role to User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user\": 5,\n    \"role\": 4,\n    \"is_primary\": true,\n    \"valid_from\": \"2025-11-28T00:00:00Z\",\n    \"valid_until\": \"2026-11-28T00:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", ""]
+						},
+						"description": "Assign a role to a user. Requires Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Assign Role to Users",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_ids\": [5, 6, 7],\n    \"role_id\": 4,\n    \"is_primary\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/bulk/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", "bulk", ""]
+						},
+						"description": "Bulk assign a role to multiple users."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Role Assignment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_primary\": true,\n    \"valid_until\": \"2027-11-28T00:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", "1", ""]
+						},
+						"description": "Update a user role assignment."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Role from User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/user-role-assignments/1/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "user-role-assignments", "1", ""]
+						},
+						"description": "Revoke a role from a user."
+					},
+					"response": []
+				}
+			],
+			"description": "User to Role assignment endpoints."
+		},
+		{
+			"name": "🔑 RBAC - Permissions",
+			"item": [
+				{
+					"name": "Get My Permissions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/my-permissions/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "my-permissions", ""]
+						},
+						"description": "Get all permissions of the authenticated user."
+					},
+					"response": []
+				},
+				{
+					"name": "Check App Permission",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/check-permission/?app_code=USER_MGMT&permission=view",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "check-permission", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								},
+								{
+									"key": "permission",
+									"value": "view"
+								}
+							]
+						},
+						"description": "Check if user has specific permission on an app."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Feature Permission",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/check-permission/?app_code=USER_MGMT&feature_code=CREATE_USER&permission=create",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "check-permission", ""],
+							"query": [
+								{
+									"key": "app_code",
+									"value": "USER_MGMT"
+								},
+								{
+									"key": "feature_code",
+									"value": "CREATE_USER"
+								},
+								{
+									"key": "permission",
+									"value": "create"
+								}
+							]
+						},
+						"description": "Check if user has specific permission on a feature."
+					},
+					"response": []
+				}
+			],
+			"description": "Permission checking endpoints."
+		},
+		{
+			"name": "📋 RBAC - Audit Logs",
+			"item": [
+				{
+					"name": "List Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""]
+						},
+						"description": "Get list of all audit logs. Requires Super Admin or above."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Logs by Action",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/?action=CREATE",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""],
+							"query": [
+								{
+									"key": "action",
+									"value": "CREATE"
+								}
+							]
+						},
+						"description": "Get logs filtered by action type."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Logs by Entity Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/?entity_type=USER_ROLE",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""],
+							"query": [
+								{
+									"key": "entity_type",
+									"value": "USER_ROLE"
+								}
+							]
+						},
+						"description": "Get logs filtered by entity type."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Logs by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/audit-logs/?user_id=1&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "audit-logs", ""],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get logs filtered by performer and limit results."
+					},
+					"response": []
+				}
+			],
+			"description": "Audit log endpoints for tracking changes."
+		},
+		{
+			"name": "🔐 Access Management",
+			"item": [
+				{
+					"name": "Get All Apps & Features (for SP/Developer)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/all-access-items/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "all-access-items", ""]
+						},
+						"description": "Get complete list of all apps, features, and roles for access assignment.\n\n**Use Case:** SP/Developer uses this to see all available access items before assigning to Admin/Client users.\n\n**Returns:**\n- apps: List of all apps with their features\n- roles: List of all roles\n- total_apps, total_features, total_roles counts"
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Access Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "access", ""]
+						},
+						"description": "Get comprehensive access overview for a specific user.\n\n**Returns:**\n- user: Basic user info\n- roles: Assigned roles with timestamps\n- apps: Apps user can access with permissions\n- features: Features user can access with permissions\n- kyc_status: User's KYC application status"
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Access to User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_code\": \"ADMIN\",\n    \"app_codes\": [\"USER_MGMT\", \"REPORTS\"],\n    \"feature_codes\": [\"CREATE_USER\", \"VIEW_REPORT\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/assign-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "assign-access", ""]
+						},
+						"description": "Assign role, apps, and/or features to a user.\n\n**All fields are optional:**\n- role_code: Assign a role (will update user.user_role)\n- app_codes: Array of app codes to grant access\n- feature_codes: Array of feature codes to grant access\n\n**Permissions:**\n- Only can assign roles at or below your level\n- Super Admin/Developer only"
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Role Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_code\": \"CLIENT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/assign-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "assign-access", ""]
+						},
+						"description": "Assign only a role to a user."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Apps Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app_codes\": [\"USER_MGMT\", \"KYC_MGMT\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/assign-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "assign-access", ""]
+						},
+						"description": "Assign only apps to a user."
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Access from User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_code\": \"ADMIN\",\n    \"app_codes\": [\"REPORTS\"],\n    \"feature_codes\": [\"CREATE_USER\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/revoke-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "revoke-access", ""]
+						},
+						"description": "Revoke specific access from a user.\n\n**Options:**\n- role_code: Revoke a specific role\n- app_codes: Revoke specific app access\n- feature_codes: Revoke specific feature access\n- revoke_all: true - Revoke ALL access"
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke All Access from User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"revoke_all\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/rbac/users/{{target_user_id}}/revoke-access/",
+							"host": ["{{base_url}}"],
+							"path": ["rbac", "users", "{{target_user_id}}", "revoke-access", ""]
+						},
+						"description": "Revoke ALL access from a user (all roles, apps, features)."
+					},
+					"response": []
+				}
+			],
+			"description": "Access management endpoints for SP/Developer to assign and revoke access to users.\n\n**Workflow:**\n1. Use 'Get All Apps & Features' to see available items\n2. Use 'Get User Access Overview' to see current user access\n3. Use 'Assign Access' to grant new access\n4. Use 'Revoke Access' to remove access"
+		},
+		{
+			"name": "📋 KYC Verification",
+			"item": [
+				{
+					"name": "OTP",
+					"item": [
+						{
+							"name": "Send Email OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_type\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/auth-user/send-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["auth-user", "send-otp", ""]
+								},
+								"description": "Send OTP to user's email for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Send Phone OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_type\": \"PHONE\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/auth-user/send-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["auth-user", "send-otp", ""]
+								},
+								"description": "Send OTP to user's phone for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Verify OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_code\": \"123456\",\n    \"otp_type\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/auth-user/verify-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["auth-user", "verify-otp", ""]
+								},
+								"description": "Verify the OTP received via email or phone."
+							},
+							"response": []
+						},
+						{
+							"name": "Resend OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_type\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/auth-user/resend-otp/",
+									"host": ["{{base_url}}"],
+									"path": ["auth-user", "resend-otp", ""]
+								},
+								"description": "Resend OTP (invalidates previous OTPs)."
+							},
+							"response": []
+						}
+					],
+					"description": "OTP verification endpoints for email and phone."
+				},
+				{
+					"name": "KYC Status & Start",
+					"item": [
+						{
+							"name": "Get KYC Status",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.has_kyc && jsonData.kyc) {",
+											"    pm.collectionVariables.set('kyc_application_id', jsonData.kyc.application_id);",
+											"    console.log('KYC Application ID:', jsonData.kyc.application_id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/status/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "status", ""]
+								},
+								"description": "Get current user's KYC status including progress, identity proof, business details, bank details, and all step statuses."
+							},
+							"response": []
+						},
+						{
+							"name": "Start KYC Application",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.success && jsonData.kyc) {",
+											"    pm.collectionVariables.set('kyc_application_id', jsonData.kyc.application_id);",
+											"    console.log('KYC Started! Application ID:', jsonData.kyc.application_id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/start/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "start", ""]
+								},
+								"description": "Start a new KYC application. Creates all related records (identity proof, business details, bank details, progress tracker)."
+							},
+							"response": []
+						}
+					],
+					"description": "KYC application status and initialization."
+				},
+				{
+					"name": "Identity Proof",
+					"item": [
+						{
+							"name": "Submit Aadhaar Details",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"aadhaar_number\": \"123456789012\",\n    \"aadhaar_name\": \"John Doe\",\n    \"aadhaar_dob\": \"1990-01-15\",\n    \"aadhaar_address\": \"123 Main Street, City, State 123456\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/aadhaar/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "aadhaar", ""]
+								},
+								"description": "Submit Aadhaar details. Aadhaar number is encrypted and masked in responses (XXXX-XXXX-9012)."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Aadhaar Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/aadhaar/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "aadhaar", ""]
+								},
+								"description": "Get current Aadhaar details with masked number."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Aadhaar Photos",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "aadhaar_front",
+											"type": "file",
+											"description": "Aadhaar front image (JPG/PNG/PDF, max 5MB)"
+										},
+										{
+											"key": "aadhaar_back",
+											"type": "file",
+											"description": "Aadhaar back image (JPG/PNG/PDF, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/aadhaar/upload/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "aadhaar", "upload", ""]
+								},
+								"description": "Upload Aadhaar front and back images. Supports JPG, PNG, PDF up to 5MB."
+							},
+							"response": []
+						},
+						{
+							"name": "Submit PAN Details",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"pan_number\": \"ABCDE1234F\",\n    \"pan_name\": \"John Doe\",\n    \"pan_dob\": \"1990-01-15\",\n    \"pan_father_name\": \"Father Name\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/pan/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "pan", ""]
+								},
+								"description": "Submit PAN details. PAN number is encrypted and masked in responses (ABCXX1234X)."
+							},
+							"response": []
+						},
+						{
+							"name": "Get PAN Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/pan/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "pan", ""]
+								},
+								"description": "Get current PAN details with masked number."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload PAN Photo",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "pan_image",
+											"type": "file",
+											"description": "PAN card image (JPG/PNG/PDF, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/identity/pan/upload/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "identity", "pan", "upload", ""]
+								},
+								"description": "Upload PAN card image. Supports JPG, PNG, PDF up to 5MB."
+							},
+							"response": []
+						}
+					],
+					"description": "Identity proof endpoints for Aadhaar and PAN verification."
+				},
+				{
+					"name": "Business Details",
+					"item": [
+						{
+							"name": "Submit Business Details",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"business_name\": \"CredBuzz Pvt Ltd\",\n    \"business_type\": \"Private Limited\",\n    \"business_phone\": \"9876543210\",\n    \"business_email\": \"business@company.com\",\n    \"address_line_1\": \"123 Business Park\",\n    \"address_line_2\": \"Floor 5\",\n    \"address_line_3\": \"\",\n    \"landmark\": \"Near Metro Station\",\n    \"city\": \"Mumbai\",\n    \"district\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400001\",\n    \"country\": \"India\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/business/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "business", ""]
+								},
+								"description": "Submit or update business details including address."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Business Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/business/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "business", ""]
+								},
+								"description": "Get current business details."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Business Details",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"business_name\": \"CredBuzz Pvt Ltd\",\n    \"business_type\": \"Private Limited\",\n    \"business_phone\": \"9876543210\",\n    \"business_email\": \"updated@company.com\",\n    \"address_line_1\": \"456 New Address\",\n    \"city\": \"Mumbai\",\n    \"district\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400002\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/business/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "business", ""]
+								},
+								"description": "Update business details."
+							},
+							"response": []
+						}
+					],
+					"description": "Business details and address endpoints."
+				},
+				{
+					"name": "Verification Images",
+					"item": [
+						{
+							"name": "Get Verification Status",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", ""]
+								},
+								"description": "Get current verification images status and URLs."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Selfie",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "selfie",
+											"type": "file",
+											"description": "Selfie photo (JPG/PNG, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/selfie/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", "selfie", ""]
+								},
+								"description": "Upload selfie photo for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Office Photos",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "office_sitting_photo",
+											"type": "file",
+											"description": "Photo sitting in office (JPG/PNG, max 5MB)"
+										},
+										{
+											"key": "office_door_photo",
+											"type": "file",
+											"description": "Photo at office door with name board (JPG/PNG, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/office/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", "office", ""]
+								},
+								"description": "Upload office photos for verification."
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Address Proof",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "address_proof",
+											"type": "file",
+											"description": "Address proof document (JPG/PNG/PDF, max 5MB)"
+										},
+										{
+											"key": "address_proof_type",
+											"value": "UTILITY_BILL",
+											"type": "text",
+											"description": "Type: UTILITY_BILL, BANK_STATEMENT, RENT_AGREEMENT, etc."
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/verification/address-proof/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "verification", "address-proof", ""]
+								},
+								"description": "Upload address proof for verification."
+							},
+							"response": []
+						}
+					],
+					"description": "Verification images upload (selfie, office photos, address proof)."
+				},
+				{
+					"name": "Bank Details",
+					"item": [
+						{
+							"name": "Submit Bank Details (JSON)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"account_holder_name\": \"John Doe\",\n    \"account_number\": \"12345678901234\",\n    \"confirm_account_number\": \"12345678901234\",\n    \"ifsc_code\": \"SBIN0001234\",\n    \"account_type\": \"SAVINGS\",\n    \"bank_name\": \"State Bank of India\",\n    \"branch_name\": \"Main Branch\",\n    \"branch_address\": \"123 Bank Street\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/bank/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "bank", ""]
+								},
+								"description": "Submit bank details. Account number is encrypted and masked in responses (XXXXXXXX1234)."
+							},
+							"response": []
+						},
+						{
+							"name": "Submit Bank Details (with Document)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "account_holder_name",
+											"value": "John Doe",
+											"type": "text"
+										},
+										{
+											"key": "account_number",
+											"value": "12345678901234",
+											"type": "text"
+										},
+										{
+											"key": "confirm_account_number",
+											"value": "12345678901234",
+											"type": "text"
+										},
+										{
+											"key": "ifsc_code",
+											"value": "SBIN0001234",
+											"type": "text"
+										},
+										{
+											"key": "account_type",
+											"value": "SAVINGS",
+											"type": "text",
+											"description": "SAVINGS or CURRENT"
+										},
+										{
+											"key": "bank_name",
+											"value": "State Bank of India",
+											"type": "text"
+										},
+										{
+											"key": "branch_name",
+											"value": "Main Branch",
+											"type": "text"
+										},
+										{
+											"key": "bank_document",
+											"type": "file",
+											"description": "Cancelled cheque or passbook (JPG/PNG/PDF, max 5MB)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/bank/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "bank", ""]
+								},
+								"description": "Submit bank details with cancelled cheque or passbook document."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Bank Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/bank/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "bank", ""]
+								},
+								"description": "Get current bank details with masked account number."
+							},
+							"response": []
+						}
+					],
+					"description": "Bank details endpoints with encryption and masking."
+				},
+				{
+					"name": "Submission",
+					"item": [
+						{
+							"name": "Submit KYC for Review",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/submit/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "submit", ""]
+								},
+								"description": "Submit completed KYC application for admin review. All required steps must be completed."
+							},
+							"response": []
+						}
+					],
+					"description": "KYC submission for review."
+				},
+				{
+					"name": "Admin",
+					"item": [
+						{
+							"name": "List All Applications",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", ""]
+								},
+								"description": "List all KYC applications. Requires DEVELOPER, SUPER_ADMIN, or SUPPORT role."
+							},
+							"response": []
+						},
+						{
+							"name": "List Applications (Filtered)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/?status=SUBMITTED&page=1&page_size=20",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", ""],
+									"query": [
+										{
+											"key": "status",
+											"value": "SUBMITTED",
+											"description": "Filter: NOT_STARTED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "20"
+										}
+									]
+								},
+								"description": "List KYC applications with filters."
+							},
+							"response": []
+						},
+						{
+							"name": "Search Applications",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/?search=user@example.com",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", ""],
+									"query": [
+										{
+											"key": "search",
+											"value": "user@example.com",
+											"description": "Search by email, user_code, or application_id"
+										}
+									]
+								},
+								"description": "Search KYC applications by email, user code, or application ID."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Application Detail",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", ""]
+								},
+								"description": "Get detailed view of a KYC application including all proofs, documents, and audit logs."
+							},
+							"response": []
+						},
+						{
+							"name": "Start Review",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/review/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", "review", ""]
+								},
+								"description": "Mark application as under review. Changes status from SUBMITTED to UNDER_REVIEW."
+							},
+							"response": []
+						},
+						{
+							"name": "Approve Application",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"remarks\": \"All documents verified successfully.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/approve/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", "approve", ""]
+								},
+								"description": "Approve KYC application. Optional remarks can be added."
+							},
+							"response": []
+						},
+						{
+							"name": "Reject Application",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"rejection_reason\": \"Aadhaar image is blurry. Please upload a clearer image.\",\n    \"remarks\": \"Document quality insufficient for verification.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kyc/admin/applications/{{kyc_application_id}}/reject/",
+									"host": ["{{base_url}}"],
+									"path": ["kyc", "admin", "applications", "{{kyc_application_id}}", "reject", ""]
+								},
+								"description": "Reject KYC application. Rejection reason is required and shown to the user."
+							},
+							"response": []
+						}
+					],
+					"description": "Admin endpoints for reviewing and managing KYC applications. Requires admin role (DEVELOPER, SUPER_ADMIN, SUPPORT)."
+				}
+			],
+			"description": "KYC (Know Your Customer) verification endpoints for user onboarding.\n\n## KYC Flow\n1. **Start KYC** - Initialize application\n2. **OTP Verification** - Verify email/phone (optional)\n3. **Identity Proof** - Submit Aadhaar and PAN details with photos\n4. **Business Details** - Submit business information and address\n5. **Verification Images** - Upload selfie, office photos, address proof\n6. **Bank Details** - Submit bank account information\n7. **Submit** - Submit for admin review\n\n## Status Flow\n```\nNOT_STARTED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED/REJECTED\n```\n\n## Security\n- Aadhaar, PAN, Account numbers are encrypted\n- Responses show masked values (XXXX-XXXX-9012)\n- Max file size: 5MB\n- Allowed formats: JPG, PNG, PDF"
+		},
+		{
+			"name": "💳 Bill Pay",
+			"item": [
+				{
+					"name": "Categories",
+					"item": [
+						{
+							"name": "List Bill Categories",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/categories/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "categories", ""]
+								},
+								"description": "Get all active bill categories (Electricity, Gas, Water, etc.)"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Billers",
+					"item": [
+						{
+							"name": "List All Billers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/billers/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "billers", ""]
+								},
+								"description": "Get all active billers"
+							},
+							"response": []
+						},
+						{
+							"name": "List Billers by Category",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/billers/?category_code=ELECTRICITY",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "billers", ""],
+									"query": [
+										{
+											"key": "category_code",
+											"value": "ELECTRICITY"
+										}
+									]
+								},
+								"description": "Get billers filtered by category code"
+							},
+							"response": []
+						},
+						{
+							"name": "Search Billers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/billers/?search=tata",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "billers", ""],
+									"query": [
+										{
+											"key": "search",
+											"value": "tata"
+										}
+									]
+								},
+								"description": "Search billers by name or code"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Featured Billers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/featured/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "featured", ""]
+								},
+								"description": "Get top featured billers for quick access"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Biller Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/billers/1/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "billers", "1", ""]
+								},
+								"description": "Get detailed information about a specific biller including required fields"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Bill Fetch & Payment",
+					"item": [
+						{
+							"name": "Fetch Bill",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.success && jsonData.data.bill) {",
+											"    pm.collectionVariables.set('bill_amount', jsonData.data.bill.bill_amount);",
+											"    pm.collectionVariables.set('total_amount', jsonData.data.bill.total_amount);",
+											"    console.log('✅ Bill fetched! Amount: ₹' + jsonData.data.bill.bill_amount);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"biller_id\": 1,\n    \"consumer_number\": \"1234567890\",\n    \"additional_params\": {}\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bills/fetch/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "fetch", ""]
+								},
+								"description": "Fetch bill details for a consumer number. Returns bill amount, due date, and other details."
+							},
+							"response": []
+						},
+						{
+							"name": "Pay Bill",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.success && jsonData.data.payment) {",
+											"    pm.collectionVariables.set('transaction_id', jsonData.data.payment.transaction_id);",
+											"    console.log('✅ Payment successful! Transaction ID: ' + jsonData.data.payment.transaction_id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"biller_id\": 1,\n    \"consumer_number\": \"1234567890\",\n    \"amount\": 1500.00,\n    \"payment_method\": \"WALLET\",\n    \"consumer_name\": \"John Doe\",\n    \"bill_date\": \"2025-12-01\",\n    \"due_date\": \"2025-12-23\",\n    \"bill_number\": \"BILL20251208001\",\n    \"bill_period\": \"December 2025\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bills/pay/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "pay", ""]
+								},
+								"description": "Pay a bill. Payment methods: WALLET, UPI, CARD, NETBANKING"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Payment History",
+					"item": [
+						{
+							"name": "Get Payment History",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/history/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "history", ""]
+								},
+								"description": "Get user's payment history with pagination"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payment History (Filtered)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/history/?status=SUCCESS&page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "history", ""],
+									"query": [
+										{
+											"key": "status",
+											"value": "SUCCESS"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										}
+									]
+								},
+								"description": "Get filtered payment history. Filters: status, category_id, biller_id, start_date, end_date"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payment Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/payments/{{transaction_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "payments", "{{transaction_id}}", ""]
+								},
+								"description": "Get details of a specific payment by transaction ID"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Recent Payments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/recent/?limit=5",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "recent", ""],
+									"query": [
+										{
+											"key": "limit",
+											"value": "5"
+										}
+									]
+								},
+								"description": "Get user's recent successful payments for quick repeat"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Saved Billers",
+					"item": [
+						{
+							"name": "List Saved Billers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/saved/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "saved", ""]
+								},
+								"description": "Get user's saved billers for quick access"
+							},
+							"response": []
+						},
+						{
+							"name": "Save a Biller",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.success && jsonData.data.saved_biller) {",
+											"    pm.collectionVariables.set('saved_biller_id', jsonData.data.saved_biller.id);",
+											"    console.log('✅ Biller saved! ID: ' + jsonData.data.saved_biller.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"biller\": 1,\n    \"consumer_number\": \"1234567890\",\n    \"nickname\": \"Home Electricity\",\n    \"is_autopay_enabled\": false,\n    \"autopay_amount_limit\": null\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bills/saved/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "saved", ""]
+								},
+								"description": "Save a biller for quick access. Optionally enable autopay."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Saved Biller Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/saved/{{saved_biller_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "saved", "{{saved_biller_id}}", ""]
+								},
+								"description": "Get details of a specific saved biller"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Saved Biller",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"nickname\": \"Updated Home Electricity\",\n    \"is_autopay_enabled\": true,\n    \"autopay_amount_limit\": 5000.00\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bills/saved/{{saved_biller_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "saved", "{{saved_biller_id}}", ""]
+								},
+								"description": "Update nickname or autopay settings for a saved biller"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Saved Biller",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bills/saved/{{saved_biller_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["bills", "saved", "{{saved_biller_id}}", ""]
+								},
+								"description": "Remove a saved biller"
+							},
+							"response": []
+						}
+					]
+				}
+			],
+			"description": "Bill Pay APIs for utility bills, recharges, and payments.\n\n## Bill Pay Flow\n1. **Browse** - List categories and billers\n2. **Fetch** - Get bill details for consumer number\n3. **Pay** - Make payment (WALLET, UPI, CARD, NETBANKING)\n4. **Track** - View payment history and status\n\n## Available Categories\n- Electricity\n- Gas\n- Water\n- Mobile Prepaid/Postpaid\n- DTH\n- Broadband\n- Insurance\n- Credit Card\n- Loan EMI\n- Municipal Tax\n\n## Payment Status\n```\nINITIATED → PROCESSING → SUCCESS/FAILED\n```\n\n## Features\n- Save billers for quick access\n- Payment history with filters\n- Recent payments for repeat\n- Featured billers"
+		}
+	]
+}
+
