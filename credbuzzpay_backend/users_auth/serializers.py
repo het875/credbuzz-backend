@@ -25,13 +25,28 @@ class UserRegistrationSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150, required=False, allow_blank=True)
     
     def validate_email(self, value):
-        """Validate email is unique"""
-        if User.objects.filter(email=value.lower()).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value.lower()
+        """
+        Validate email uniqueness considering verification status.
+        
+        If email exists and is verified → Error (user already registered)
+        If email exists but NOT verified → Allow (resend OTP scenario)
+        If email doesn't exist → Allow (new registration)
+        """
+        value = value.lower()
+        # Check if email exists AND is verified
+        existing_user = User.objects.filter(email=value).first()
+        if existing_user and existing_user.is_email_verified:
+            raise serializers.ValidationError("A user with this email already exists and is verified.")
+        return value
     
     def validate_phone_number(self, value):
-        """Validate phone number is unique and valid format"""
+        """
+        Validate phone number considering verification status.
+        
+        If phone exists and is verified → Error (user already registered)
+        If phone exists but NOT verified → Allow (resend OTP scenario)
+        If phone doesn't exist → Allow (new registration)
+        """
         # Remove any spaces, dashes or parentheses
         cleaned = re.sub(r'[\s\-\(\)]', '', value)
         
@@ -39,9 +54,10 @@ class UserRegistrationSerializer(serializers.Serializer):
         if not re.match(r'^\d{10}$', cleaned):
             raise serializers.ValidationError("Phone number must be exactly 10 digits.")
         
-        # Check if phone number already exists
-        if User.objects.filter(phone_number=cleaned).exists():
-            raise serializers.ValidationError("A user with this phone number already exists.")
+        # Check if phone number exists AND is verified
+        existing_user = User.objects.filter(phone_number=cleaned).first()
+        if existing_user and existing_user.is_phone_verified:
+            raise serializers.ValidationError("A user with this phone number already exists and is verified.")
         
         return cleaned
     
@@ -100,13 +116,41 @@ class UserRegistrationSerializer(serializers.Serializer):
         return data
     
     def create(self, validated_data):
-        """Create new user (not verified until OTP confirmation)"""
+        """
+        Create new user or update unverified existing user.
+        
+        Returns:
+            User: Created/updated user object (not verified until OTP confirmation)
+            is_new_user: Boolean indicating if this is a new registration (used by view)
+        """
         validated_data.pop('confirm_password')
         password = validated_data.pop('password')
         
+        email = validated_data.get('email')
+        phone_number = validated_data.get('phone_number')
+        
+        # Check if unverified user already exists with this email
+        existing_user = User.objects.filter(email=email, is_email_verified=False).first()
+        
+        if existing_user:
+            # Resend OTP scenario: Update unverified user with new password and details
+            existing_user.first_name = validated_data.get('first_name', existing_user.first_name)
+            existing_user.middle_name = validated_data.get('middle_name', existing_user.middle_name)
+            existing_user.last_name = validated_data.get('last_name', existing_user.last_name)
+            existing_user.phone_number = phone_number
+            existing_user.set_password(password)
+            existing_user.user_role = 'END_USER'
+            existing_user.is_verified = False  # Still needs verification
+            existing_user.is_email_verified = False
+            existing_user.email_otp_attempt_count = 0  # Reset attempts on resend
+            existing_user.save()
+            return existing_user
+        
+        # New registration: Create new user
         user = User(**validated_data)
         user.set_password(password)
-        user.is_verified = False  # User needs to verify email and phone via OTP
+        user.is_verified = False  # User needs to verify email via OTP
+        user.is_email_verified = False
         user.user_role = 'END_USER'  # Default role for new registrations
         user.save()
         

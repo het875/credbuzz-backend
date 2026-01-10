@@ -58,35 +58,35 @@ class RegisterView(APIView):
         return [RegistrationRateThrottle()]
     
     def post(self, request):
+        """
+        Register a new user or resend OTP to unverified user.
+        
+        Two-step process:
+        1. User data is created/updated with is_email_verified=False
+        2. OTP is generated, stored in User model, and sent via email
+        
+        If user exists but is not verified:
+        - OTP is regenerated and resent (no error thrown)
+        """
         from django.conf import settings
         from .email_service import send_otp_email
+        import random
         
         serializer = UserRegistrationSerializer(data=request.data)
         
         if serializer.is_valid():
             user = serializer.save()
             
-            # Import OTP model from kyc_verification
-            from kyc_verification.models import OTPVerification, OTPType
-            import random
-            
             # Get OTP settings
             otp_length = getattr(settings, 'OTP_LENGTH', 6)
-            otp_expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+            otp_expiry_minutes = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
             
-            # Track email delivery status
-            email_sent = False
-            
-            # Generate Email OTP
+            # Generate and store email OTP in User model
             email_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
-            email_otp = OTPVerification.objects.create(
-                user=user,
-                otp_type=OTPType.EMAIL,
-                otp_code=email_otp_code,
-                expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
-                ip_address=get_client_ip(request),
-                user_agent=get_user_agent(request)
-            )
+            user.email_otp = email_otp_code
+            user.email_otp_created_at = timezone.now()
+            user.email_otp_attempt_count = 0  # Reset attempt counter for new/resent OTP
+            user.save(update_fields=['email_otp', 'email_otp_created_at', 'email_otp_attempt_count'])
             
             # Send OTP via email
             user_name = user.first_name or user.email.split('@')[0]
@@ -96,33 +96,6 @@ class RegisterView(APIView):
                 user_name=user_name
             )
             
-            # Check if mobile verification is required
-            require_mobile_verification = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
-            
-            phone_otp_sent = False
-            phone_message = ""
-            
-            if require_mobile_verification:
-                # Generate Phone OTP (SMS not implemented yet)
-                phone_otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
-                phone_otp = OTPVerification.objects.create(
-                    user=user,
-                    otp_type=OTPType.PHONE,
-                    otp_code=phone_otp_code,
-                    expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
-                    ip_address=get_client_ip(request),
-                    user_agent=get_user_agent(request)
-                )
-                # TODO: Integrate SMS service for phone OTP
-                phone_otp_sent = True
-                phone_message = "Phone OTP sent successfully"
-            else:
-                # Mobile verification disabled - auto-verify phone
-                user.is_phone_verified = True
-                user.save(update_fields=['is_phone_verified'])
-                phone_otp_code = None
-                phone_message = "Mobile verification disabled - automatically verified"
-            
             response_data = {
                 'success': True,
                 'message': 'User registered successfully. Please verify your email with the OTP sent.',
@@ -130,26 +103,25 @@ class RegisterView(APIView):
                     'user': UserSerializer(user).data,
                     'verification_required': {
                         'email': True,
-                        'phone': require_mobile_verification,
                     },
                     'email_sent': email_sent,
-                    'phone_otp_sent': phone_otp_sent,
-                    'phone_message': phone_message,
-                    'expires_in_minutes': otp_expiry,
+                    'expires_in_minutes': otp_expiry_minutes,
                 }
             }
             
             # Include OTP in response only in DEBUG mode for testing
             if settings.DEBUG:
-                test_otps = {
-                    'email_otp': email_otp_code,
-                }
-                if require_mobile_verification and phone_otp_code:
-                    test_otps['phone_otp'] = phone_otp_code
-                response_data['data']['test_otps'] = test_otps
+                response_data['data']['test_otp'] = email_otp_code
             
             return Response(response_data, status=status.HTTP_201_CREATED)
         
+        # return Response(
+        #     {
+        #         'success': False,
+        #         'errors': serializer.errors
+        #     },
+        #     status=status.HTTP_400_BAD_REQUEST
+        # )
         return Response({
             'success': False,
             'message': 'Registration failed.',
@@ -912,241 +884,214 @@ class UserActivateView(APIView):
 
 class VerifyRegistrationOTPView(APIView):
     """
-    API endpoint for verifying OTP during registration.
-    User must verify both email and phone OTPs after registration.
+    API endpoint for verifying email OTP during registration.
+    
+    Once email is verified, user can login.
     
     POST /api/auth-user/verify-registration-otp/
     
     Request body:
     {
         "email": "john@example.com",
-        "otp_type": "EMAIL",  // or "PHONE"
         "otp_code": "123456"
     }
     """
     permission_classes = [AllowAny]
     
     def post(self, request):
-        email = request.data.get('email')
-        otp_type = request.data.get('otp_type')
-        otp_code = request.data.get('otp_code')
+        """
+        Verify email OTP during registration.
         
+        Logic:
+        1. Find unverified user by email
+        2. Validate OTP matches and is not expired (10 minutes)
+        3. Mark user as is_email_verified=True
+        4. Clear OTP after successful verification
+        5. Return success response
+        """
+        email = request.data.get('email', '').lower()
+        otp_code = request.data.get('otp_code', '').strip()
         
-        if not all([email, otp_type, otp_code]):
+        # Validate required fields
+        if not email or not otp_code:
             return Response({
                 'success': False,
-                'message': 'Email, OTP type, and OTP code are required.',
+                'message': 'Email and OTP code are required.',
                 'errors': {
                     'email': ['This field is required.'] if not email else [],
-                    'otp_type': ['This field is required.'] if not otp_type else [],
                     'otp_code': ['This field is required.'] if not otp_code else [],
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Find user by email
+        # Find unverified user by email
         try:
-            user = User.objects.get(email=email.lower())
+            user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response({
                 'success': False,
                 'message': 'User not found.',
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Import OTP model
-        from kyc_verification.models import OTPVerification, OTPType
-        
-        # Validate OTP type
-        valid_types = ['EMAIL', 'PHONE']
-        if otp_type.upper() not in valid_types:
+        # If already verified, return error
+        if user.is_email_verified:
             return Response({
                 'success': False,
-                'message': f'Invalid OTP type. Must be one of: {", ".join(valid_types)}',
+                'message': 'Email is already verified.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if mobile verification is required
-        require_mobile_verification = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
-        
-        # If mobile verification is disabled and verifying phone OTP, auto-verify
-        if otp_type.upper() == 'PHONE' and not require_mobile_verification:
-            # Auto-verify phone
-            user.is_phone_verified = True
-            user.phone_verified_at = timezone.now()
-            user.save(update_fields=['is_phone_verified', 'phone_verified_at'])
-            
-            return Response({
-                'success': True,
-                'message': 'Mobile verification is disabled - automatically verified',
-                'data': {
-                    'verified': True,
-                    'bypass_enabled': True,
-                    'user': {
-                        'email': user.email,
-                        'is_email_verified': user.is_email_verified,
-                        'is_phone_verified': user.is_phone_verified,
-                    }
-                }
-            }, status=status.HTTP_200_OK)
-        
-        # Get the latest active OTP for this user and type
-        otp_record = OTPVerification.objects.filter(
-            user=user,
-            otp_type=otp_type.upper(),
-            is_verified=False
-        ).order_by('-created_at').first()
-        
-        if not otp_record:
+        # Check if OTP exists
+        if not user.email_otp:
             return Response({
                 'success': False,
-                'message': f'No active OTP found for {otp_type}. Please request a new OTP.',
+                'message': 'No OTP found. Please request a new OTP.',
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Verify OTP
-        success, message = otp_record.verify(otp_code)
+        # Check OTP expiry (default: 10 minutes)
+        otp_expiry_minutes = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+        if user.email_otp_created_at:
+            expiry_time = user.email_otp_created_at + timezone.timedelta(minutes=otp_expiry_minutes)
+            if timezone.now() > expiry_time:
+                return Response({
+                    'success': False,
+                    'message': f'OTP has expired. Please request a new OTP (valid for {otp_expiry_minutes} minutes).',
+                }, status=status.HTTP_400_BAD_REQUEST)
         
-        if not success:
+        # Increment attempt counter to prevent brute force
+        max_attempts = getattr(settings, 'OTP_MAX_ATTEMPTS', 5)
+        user.email_otp_attempt_count = (user.email_otp_attempt_count or 0) + 1
+        
+        # Check if max attempts exceeded
+        if user.email_otp_attempt_count > max_attempts:
+            user.save(update_fields=['email_otp_attempt_count'])
             return Response({
                 'success': False,
-                'message': message,
+                'message': f'Maximum OTP verification attempts ({max_attempts}) exceeded. Please request a new OTP.',
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        # Validate OTP code
+        if user.email_otp != otp_code:
+            user.save(update_fields=['email_otp_attempt_count'])
+            remaining_attempts = max_attempts - user.email_otp_attempt_count
+            return Response({
+                'success': False,
+                'message': f'Invalid OTP code. {remaining_attempts} attempts remaining.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Update user verification status
-        if otp_type.upper() == 'EMAIL':
-            user.is_email_verified = True
-            user.email_verified_at = timezone.now()
-        elif otp_type.upper() == 'PHONE':
-            user.is_phone_verified = True
-            user.phone_verified_at = timezone.now()
+        # OTP is valid! Mark user as verified
+        user.is_email_verified = True
+        user.email_verified_at = timezone.now()
+        user.is_verified = True  # Email verification is the only requirement now
         
-        # If both email and phone are verified, set user as verified
-        if user.is_email_verified and user.is_phone_verified:
-            user.is_verified = True
+        # Clear OTP after successful verification (security best practice)
+        user.email_otp = None
+        user.email_otp_created_at = None
+        user.email_otp_attempt_count = 0
         
         user.save()
         
         return Response({
             'success': True,
-            'message': f'{otp_type.capitalize()} verified successfully.',
+            'message': 'Email verified successfully. You can now login.',
             'data': {
+                'user': UserSerializer(user).data,
                 'is_email_verified': user.is_email_verified,
-                'is_phone_verified': user.is_phone_verified,
-                'is_fully_verified': user.is_email_verified and user.is_phone_verified,
+                'verified_at': user.email_verified_at.isoformat() if user.email_verified_at else None,
             }
         }, status=status.HTTP_200_OK)
 
 
 class ResendRegistrationOTPView(APIView):
     """
-    API endpoint for resending OTP during registration.
+    API endpoint for resending email OTP during registration.
+    
+    If user exists but is NOT verified:
+    - Regenerate OTP
+    - Send OTP to email
+    - Reset attempt counter
     
     POST /api/auth-user/resend-registration-otp/
     
     Request body:
     {
-        "email": "john@example.com",
-        "otp_type": "EMAIL"  // or "PHONE"
+        "email": "john@example.com"
     }
     """
     permission_classes = [AllowAny]
+    throttle_classes = []  # Can add throttle to prevent OTP spam
     
     def post(self, request):
+        """
+        Resend email OTP.
+        
+        Logic:
+        1. Find user by email
+        2. Check if already verified (if yes, return error)
+        3. Generate new OTP and store in User model
+        4. Send OTP via email
+        5. Return success with OTP expiry time
+        """
         import random
-        from django.conf import settings
         from .email_service import send_otp_email
         
-        email = request.data.get('email')
-        otp_type = request.data.get('otp_type')
+        email = request.data.get('email', '').lower()
         
-        if not all([email, otp_type]):
+        # Validate required fields
+        if not email:
             return Response({
                 'success': False,
-                'message': 'Email and OTP type are required.',
+                'message': 'Email is required.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Find user by email
         try:
-            user = User.objects.get(email=email.lower())
+            user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response({
                 'success': False,
                 'message': 'User not found.',
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Import OTP model
-        from kyc_verification.models import OTPVerification, OTPType
-        
         # Check if already verified
-        if otp_type.upper() == 'EMAIL' and user.is_email_verified:
+        if user.is_email_verified:
             return Response({
                 'success': False,
-                'message': 'Email is already verified.',
+                'message': 'Email is already verified. You can login now.',
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if otp_type.upper() == 'PHONE' and user.is_phone_verified:
-            return Response({
-                'success': False,
-                'message': 'Phone is already verified.',
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if mobile verification is required
-        require_mobile_verification = getattr(settings, 'REQUIRE_MOBILE_VERIFICATION', False)
-        
-        # If mobile verification is disabled and requesting phone OTP, auto-verify
-        if otp_type.upper() == 'PHONE' and not require_mobile_verification:
-            user.is_phone_verified = True
-            user.save(update_fields=['is_phone_verified'])
-            return Response({
-                'success': True,
-                'message': 'Mobile verification is disabled - automatically verified',
-                'data': {
-                    'otp_sent': False,
-                    'bypass_enabled': True,
-                    'message': 'Mobile verification bypassed'
-                }
-            }, status=status.HTTP_200_OK)
         
         # Get OTP settings
         otp_length = getattr(settings, 'OTP_LENGTH', 6)
-        otp_expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+        otp_expiry_minutes = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+        max_resend_attempts = getattr(settings, 'OTP_RESEND_MAX_ATTEMPTS', 5)
         
-        # Invalidate existing OTPs
-        OTPVerification.objects.filter(
-            user=user,
-            otp_type=otp_type.upper(),
-            is_verified=False
-        ).update(expires_at=timezone.now())
+        # Track resend attempts (optional: add resend_count field to User if needed)
+        # For now, we'll just generate and send
         
         # Generate new OTP
         otp_code = ''.join([str(random.randint(0, 9)) for _ in range(otp_length)])
         
-        otp = OTPVerification.objects.create(
-            user=user,
-            otp_type=otp_type.upper(),
-            otp_code=otp_code,
-            expires_at=timezone.now() + timezone.timedelta(minutes=otp_expiry),
-            ip_address=get_client_ip(request),
-            user_agent=get_user_agent(request)
-        )
+        # Update user with new OTP
+        user.email_otp = otp_code
+        user.email_otp_created_at = timezone.now()
+        user.email_otp_attempt_count = 0  # Reset attempts on resend
+        user.save(update_fields=['email_otp', 'email_otp_created_at', 'email_otp_attempt_count'])
         
-        # Send OTP via email if type is EMAIL
-        email_sent = False
-        if otp_type.upper() == 'EMAIL':
-            user_name = user.first_name or user.email.split('@')[0]
-            email_sent = send_otp_email(
-                email=user.email,
-                otp_code=otp_code,
-                user_name=user_name
-            )
+        # Send OTP via email
+        user_name = user.first_name or user.email.split('@')[0]
+        email_sent = send_otp_email(
+            email=user.email,
+            otp_code=otp_code,
+            user_name=user_name
+        )
         
         response_data = {
             'success': True,
-            'message': f'OTP sent to your {otp_type.lower()}.',
+            'message': 'OTP has been resent to your email.',
             'data': {
-                'expires_in_minutes': otp_expiry,
+                'email': user.email,
+                'email_sent': email_sent,
+                'expires_in_minutes': otp_expiry_minutes,
             }
         }
-        
-        if otp_type.upper() == 'EMAIL':
-            response_data['data']['email_sent'] = email_sent
         
         # Include OTP in response only in DEBUG mode for testing
         if settings.DEBUG:

@@ -98,6 +98,11 @@ class User(models.Model):
     email_verified_at = models.DateTimeField(null=True, blank=True)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
     
+    # Email OTP verification fields
+    email_otp = models.CharField(max_length=10, blank=True, null=True, help_text="Email OTP code")
+    email_otp_created_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when email OTP was generated")
+    email_otp_attempt_count = models.IntegerField(default=0, help_text="Number of OTP verification attempts")
+    
     # Direct role reference (for quick access, synced with UserRoleAssignment)
     user_role = models.CharField(
         max_length=20,
