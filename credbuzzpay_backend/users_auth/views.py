@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db import transaction
 from django.db.models import Q
+from django.conf import settings
 
 from .models import User, PasswordResetToken, UserSession, LoginAttempt
 from django.utils import timezone
@@ -171,6 +172,7 @@ class LoginView(APIView):
     Request body: {"identifier": "email/username/user_code/phone", "password": "..."}
     """
     permission_classes = [AllowAny]
+    authentication_classes = []  # Skip authentication for login endpoint
     throttle_classes = []  # Using custom throttle below
     
     def get_throttles(self):
@@ -376,10 +378,40 @@ class LogoutView(APIView):
             UserSession.objects.filter(user=request.user, is_active=True).update(is_active=False)
             message = 'Logged out from all devices successfully.'
         else:
-            # Just mark the current session type tokens as invalid
-            # For single logout, we'd need the refresh token ID
-            # For now, just return success
-            message = 'Logged out successfully.'
+            # Try to invalidate session for the provided refresh token (preferred)
+            refresh_token = request.data.get('refresh_token')
+            invalidated = False
+
+            if refresh_token:
+                payload = JWTManager.verify_token(refresh_token, token_type='refresh')
+                if payload:
+                    token_id = payload.get('jti')
+                    try:
+                        session = UserSession.objects.get(token_id=token_id, user=request.user, is_active=True)
+                        session.invalidate()
+                        invalidated = True
+                    except UserSession.DoesNotExist:
+                        invalidated = False
+
+            # If no refresh token provided or not invalidated, try to use current token payload
+            if not invalidated and token_payload:
+                # If the current token is a refresh token, it will contain 'jti'
+                token_type = token_payload.get('token_type')
+                token_id = token_payload.get('jti')
+                if token_type == 'refresh' and token_id:
+                    try:
+                        session = UserSession.objects.get(token_id=token_id, user=request.user, is_active=True)
+                        session.invalidate()
+                        invalidated = True
+                    except UserSession.DoesNotExist:
+                        invalidated = False
+
+            # Respond based on whether we actually invalidated a session
+            if invalidated:
+                message = 'Logged out successfully.'
+            else:
+                # Idempotent: return success even if session was already invalid or token not provided
+                message = 'Logged out successfully.'
         
         return Response({
             'success': True,
@@ -898,6 +930,7 @@ class VerifyRegistrationOTPView(APIView):
         email = request.data.get('email')
         otp_type = request.data.get('otp_type')
         otp_code = request.data.get('otp_code')
+        
         
         if not all([email, otp_type, otp_code]):
             return Response({

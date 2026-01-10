@@ -82,7 +82,7 @@ class JWTManager:
         return app_access, feature_access
     
     @classmethod
-    def generate_access_token(cls, user, include_permissions=True):
+    def generate_access_token(cls, user, include_permissions=True, session_id=None):
         """
         Generate JWT access token for user with complete user info.
         
@@ -91,10 +91,12 @@ class JWTManager:
         - app_access: list of app IDs user can access
         - feature_access: list of feature IDs user can access
         - Session tracking for inactivity timeout
+        - session_id: Link to the specific user session (refresh token JTI)
         
         Args:
             user: User model instance
             include_permissions: Whether to include RBAC permissions
+            session_id: The JTI of the associated refresh token (binds access token to session)
             
         Returns:
             tuple: (token_string, token_id, expiry_datetime)
@@ -130,6 +132,10 @@ class JWTManager:
             # For inactivity tracking (frontend should refresh based on this)
             'inactivity_timeout_minutes': cls.get_inactivity_timeout(),
         }
+        
+        # Add session binding if provided
+        if session_id:
+            payload['session_id'] = session_id
         
         token = jwt.encode(
             payload,
@@ -181,8 +187,15 @@ class JWTManager:
         Returns:
             dict: Dictionary containing access and refresh tokens with their expiry
         """
-        access_token, access_token_id, access_expiry = cls.generate_access_token(user)
+        # Generate refresh token first to get the session ID (refresh token JTI)
         refresh_token, refresh_token_id, refresh_expiry = cls.generate_refresh_token(user)
+        
+        # Generate access token bound to this session
+        access_token, access_token_id, access_expiry = cls.generate_access_token(
+            user, 
+            include_permissions=True,
+            session_id=refresh_token_id
+        )
         
         return {
             'access_token': access_token,
@@ -276,7 +289,7 @@ class JWTManager:
             return None
         
         user_id = payload.get('user_id')
-        token_id = payload.get('jti')
+        token_id = payload.get('jti')  # This is the session ID
         
         # Verify session exists and is active
         try:
@@ -302,8 +315,12 @@ class JWTManager:
         # Update session activity
         session.update_activity()
         
-        # Generate new access token with full permissions
-        access_token, access_token_id, access_expiry = cls.generate_access_token(user, include_permissions=True)
+        # Generate new access token with full permissions AND session binding
+        access_token, access_token_id, access_expiry = cls.generate_access_token(
+            user, 
+            include_permissions=True,
+            session_id=token_id
+        )
         
         return {
             'access_token': access_token,

@@ -63,10 +63,15 @@ class JWTAuthentication(BaseAuthentication):
             except User.DoesNotExist:
                 raise AuthenticationFailed('User not found or inactive.')
             
-            # Check session inactivity timeout (like bank apps)
-            # This requires finding the session from a refresh token
-            # For access tokens, we check the inactivity from user's sessions
-            self._check_session_inactivity(user)
+            # Check session binding
+            session_id = payload.get('session_id')
+            
+            if session_id:
+                self._validate_specific_session(user, session_id)
+            else:
+                # Legacy behavior or if session_id missing
+                # Check session inactivity (30 minutes like bank apps)
+                self._check_session_inactivity(user)
             
             return (user, payload)
             
@@ -75,6 +80,27 @@ class JWTAuthentication(BaseAuthentication):
         except Exception as e:
             raise AuthenticationFailed(f'Authentication failed: {str(e)}')
     
+    def _validate_specific_session(self, user, session_id):
+        """
+        Validate that the specific session bound to the token is active.
+        """
+        inactivity_timeout = JWTManager.get_inactivity_timeout()
+        
+        try:
+            session = UserSession.objects.get(token_id=session_id, user=user)
+        except UserSession.DoesNotExist:
+            raise AuthenticationFailed('Session not found. Please login again.')
+        
+        if not session.is_active:
+            raise AuthenticationFailed('Session has been invalidated. Please login again.')
+            
+        if session.is_inactive_expired(inactivity_timeout):
+            session.invalidate()
+            raise AuthenticationFailed('Session expired due to inactivity. Please login again.')
+        
+        # Update activity for the session
+        session.update_activity()
+
     def _check_session_inactivity(self, user):
         """
         Check if user has any active session that's not expired due to inactivity.
