@@ -287,6 +287,12 @@ class LoginView(APIView):
         # Get app and feature access for response
         app_access, feature_access = JWTManager.get_user_permissions(user)
         
+        # Check if user has any access (empty dashboard logic)
+        has_access = bool(app_access) or bool(feature_access)
+        access_message = None
+        if not has_access:
+            access_message = 'No applications or features have been assigned to your account. Please contact your administrator for access.'
+        
         # Get KYC status
         kyc_status = None
         if hasattr(user, 'kyc_application'):
@@ -319,6 +325,11 @@ class LoginView(APIView):
                 # Permission arrays for frontend
                 'app_access': app_access,
                 'feature_access': feature_access,
+                # Access status for empty dashboard handling
+                'access_status': {
+                    'has_access': has_access,
+                    'message': access_message,
+                },
                 # KYC status for redirect decision
                 'kyc_status': kyc_status,
                 # Session info

@@ -5,6 +5,7 @@ from rest_framework import serializers
 from .models import User, PasswordResetToken, RoleName
 import re
 from django.utils import timezone
+from django.conf import settings
 
 
 class UserRegistrationSerializer(serializers.Serializer):
@@ -119,9 +120,13 @@ class UserRegistrationSerializer(serializers.Serializer):
         """
         Create new user or update unverified existing user.
         
+        Handles two scenarios:
+        1. Email exists but unverified → Update user details (resend OTP)
+        2. Phone exists but unverified → Update user details (resend OTP)
+        3. Neither exists → Create new user
+        
         Returns:
             User: Created/updated user object (not verified until OTP confirmation)
-            is_new_user: Boolean indicating if this is a new registration (used by view)
         """
         validated_data.pop('confirm_password')
         password = validated_data.pop('password')
@@ -130,19 +135,29 @@ class UserRegistrationSerializer(serializers.Serializer):
         phone_number = validated_data.get('phone_number')
         
         # Check if unverified user already exists with this email
-        existing_user = User.objects.filter(email=email, is_email_verified=False).first()
+        existing_user_by_email = User.objects.filter(email=email, is_email_verified=False).first()
+        
+        # Check if unverified user already exists with this phone
+        existing_user_by_phone = User.objects.filter(phone_number=phone_number, is_phone_verified=False).first()
+        
+        # If both exist and they're the same user, use that user
+        # If they're different users, this shouldn't happen if validation worked correctly
+        existing_user = existing_user_by_email or existing_user_by_phone
         
         if existing_user:
             # Resend OTP scenario: Update unverified user with new password and details
             existing_user.first_name = validated_data.get('first_name', existing_user.first_name)
             existing_user.middle_name = validated_data.get('middle_name', existing_user.middle_name)
             existing_user.last_name = validated_data.get('last_name', existing_user.last_name)
-            existing_user.phone_number = phone_number
+            existing_user.email = email  # Update email
+            existing_user.phone_number = phone_number  # Update phone
+            existing_user.username = validated_data.get('username', existing_user.username)
             existing_user.set_password(password)
             existing_user.user_role = 'END_USER'
             existing_user.is_verified = False  # Still needs verification
             existing_user.is_email_verified = False
-            existing_user.email_otp_attempt_count = 0  # Reset attempts on resend
+            existing_user.is_phone_verified = False  # Reset phone verification too
+            existing_user.email_otp_attempt_count = 0  # Reset email OTP attempts on resend
             existing_user.save()
             return existing_user
         
@@ -151,6 +166,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         user.set_password(password)
         user.is_verified = False  # User needs to verify email via OTP
         user.is_email_verified = False
+        user.is_phone_verified = False
         user.user_role = 'END_USER'  # Default role for new registrations
         user.save()
         
@@ -256,13 +272,18 @@ class UserLoginSerializer(serializers.Serializer):
         # Check if user has verified email and phone (for END_USER role)
         # DEVELOPER and SUPER_ADMIN don't need OTP verification
         if user.user_role == 'END_USER':
-            if not user.is_email_verified or not user.is_phone_verified:
-                verification_needed = []
-                if not user.is_email_verified:
-                    verification_needed.append('email')
-                if not user.is_phone_verified:
-                    verification_needed.append('phone')
-                
+            # Check if mobile verification is required (can be bypassed via settings)
+            require_phone_verification = settings.REQUIRE_MOBILE_VERIFICATION
+            
+            # Build verification requirements
+            verification_needed = []
+            if not user.is_email_verified:
+                verification_needed.append('email')
+            if not user.is_phone_verified and require_phone_verification:
+                verification_needed.append('phone')
+            
+            # Only raise error if there are verification requirements
+            if verification_needed:
                 raise serializers.ValidationError({
                     'non_field_errors': [f"Please verify your {' and '.join(verification_needed)} before logging in."],
                     '_verification_required': True,

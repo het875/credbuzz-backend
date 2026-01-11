@@ -459,6 +459,40 @@ class KYCApplication(models.Model):
         self.reviewed_by = admin_user
         self.review_remarks = reason
         self.save(update_fields=['status', 'reviewed_by', 'review_remarks', 'updated_at'])
+    
+    def update_progress(self, step_number=None, mega_step=None):
+        """
+        Update KYC progress - used by views to track step completion.
+        
+        Step numbers:
+        1 - Aadhaar details submitted
+        2 - Aadhaar images uploaded
+        3 - PAN details submitted
+        4 - PAN image uploaded
+        5 - Selfie uploaded
+        6 - Office photos uploaded
+        7 - Address proof uploaded
+        8 - Bank details completed
+        
+        Args:
+            step_number: The step that was just completed
+            mega_step: Optional mega step to set
+        """
+        if step_number is not None and step_number > self.current_step:
+            self.current_step = step_number
+        
+        if mega_step is not None:
+            self.mega_step = mega_step
+        
+        # Auto-detect mega step based on current step
+        if self.current_step <= 4:
+            self.mega_step = MegaStep.IDENTITY_PROOF
+        elif self.current_step <= 7:
+            self.mega_step = MegaStep.SELFIE_AND_BUSINESS
+        else:
+            self.mega_step = MegaStep.COMPLETED
+        
+        self.save(update_fields=['current_step', 'mega_step', 'updated_at'])
 
 
 # =============================================================================

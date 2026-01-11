@@ -461,6 +461,9 @@ class AadhaarDetailsView(APIView):
         identity_proof.aadhaar_address = serializer.validated_data.get('aadhaar_address', '')
         identity_proof.save()
         
+        # Update KYC progress (Step 1: Aadhaar details)
+        kyc_app.update_progress(step_number=1)
+        
         # Update progress tracker
         progress = kyc_app.progress_steps.filter(step_number=1).first()
         if progress:
@@ -536,6 +539,9 @@ class AadhaarUploadView(APIView):
         identity_proof.aadhaar_back_image = serializer.validated_data['aadhaar_back_image']
         identity_proof.aadhaar_submitted_at = timezone.now()
         identity_proof.save()
+        
+        # Update KYC progress (Step 2: Aadhaar images)
+        kyc_app.update_progress(step_number=2)
         
         # Update progress tracker
         progress = kyc_app.progress_steps.filter(step_number=2).first()
@@ -625,6 +631,9 @@ class PANDetailsView(APIView):
         identity_proof.pan_father_name = serializer.validated_data.get('pan_father_name', '')
         identity_proof.save()
         
+        # Update KYC progress (Step 3: PAN details)
+        kyc_app.update_progress(step_number=3)
+        
         # Update progress tracker
         progress = kyc_app.progress_steps.filter(step_number=3).first()
         if progress:
@@ -632,12 +641,6 @@ class PANDetailsView(APIView):
                 'pan_name': identity_proof.pan_name,
                 'pan_dob': str(identity_proof.pan_dob)
             })
-        
-        # Update mega step if identity proof complete
-        if identity_proof.is_aadhaar_complete:
-            kyc_app.mega_step = MegaStep.SELFIE_AND_BUSINESS
-            kyc_app.current_step = 5
-            kyc_app.save(update_fields=['mega_step', 'current_step', 'updated_at'])
         
         # Log action
         KYCAuditLog.log_action(
@@ -702,6 +705,9 @@ class PANUploadView(APIView):
         identity_proof.pan_image = serializer.validated_data['pan_image']
         identity_proof.pan_submitted_at = timezone.now()
         identity_proof.save()
+        
+        # Update KYC progress (Step 4: PAN image)
+        kyc_app.update_progress(step_number=4)
         
         # Update progress tracker
         progress = kyc_app.progress_steps.filter(step_number=4).first()
@@ -879,6 +885,9 @@ class SelfieUploadView(APIView):
         verification_images.selfie_submitted_at = timezone.now()
         verification_images.save()
         
+        # Update KYC progress (Step 5: Selfie)
+        kyc_app.update_progress(step_number=5)
+        
         # Log action
         KYCAuditLog.log_action(
             kyc_application=kyc_app,
@@ -945,6 +954,9 @@ class OfficePhotosUploadView(APIView):
         verification_images.office_door_image = serializer.validated_data['office_door_image']
         verification_images.office_photos_submitted_at = timezone.now()
         verification_images.save()
+        
+        # Update KYC progress (Step 6: Office photos)
+        kyc_app.update_progress(step_number=6)
         
         # Update progress tracker
         progress = kyc_app.progress_steps.filter(step_number=6).first()
@@ -1015,6 +1027,9 @@ class AddressProofUploadView(APIView):
         verification_images.address_proof_type = serializer.validated_data['address_proof_type']
         verification_images.address_proof_submitted_at = timezone.now()
         verification_images.save()
+        
+        # Update KYC progress (Step 7: Address proof)
+        kyc_app.update_progress(step_number=7)
         
         # Update progress tracker
         progress = kyc_app.progress_steps.filter(step_number=7).first()
