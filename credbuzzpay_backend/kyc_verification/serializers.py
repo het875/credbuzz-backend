@@ -157,6 +157,71 @@ class PANUploadSerializer(serializers.Serializer):
         return value
 
 
+class AadhaarUpdateSerializer(serializers.Serializer):
+    """Serializer for Aadhaar update (details + optional images)."""
+    aadhaar_number = serializers.CharField(max_length=12, min_length=12)
+    aadhaar_name = serializers.CharField(max_length=100)
+    aadhaar_dob = serializers.DateField()
+    aadhaar_address = serializers.CharField(required=False, allow_blank=True)
+    aadhaar_front_image = serializers.ImageField(required=False, allow_null=True)
+    aadhaar_back_image = serializers.ImageField(required=False, allow_null=True)
+    
+    def validate_aadhaar_number(self, value):
+        try:
+            aadhaar_validator(value)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(str(e.message))
+        return value
+    
+    def validate(self, data):
+        max_size = 5 * 1024 * 1024  # 5MB
+        
+        # Validate image sizes if provided
+        for field in ['aadhaar_front_image', 'aadhaar_back_image']:
+            file = data.get(field)
+            if file and file.size > max_size:
+                raise serializers.ValidationError({
+                    field: f'File size must be under 5MB. Current: {file.size / (1024*1024):.2f}MB'
+                })
+        
+        # If one image is provided, both should be provided
+        has_front = data.get('aadhaar_front_image') is not None
+        has_back = data.get('aadhaar_back_image') is not None
+        
+        if has_front != has_back:
+            raise serializers.ValidationError({
+                'aadhaar_images': 'Both front and back images must be provided together, or neither.'
+            })
+        
+        return data
+
+
+class PANUpdateSerializer(serializers.Serializer):
+    """Serializer for PAN update (details + optional image)."""
+    pan_number = serializers.CharField(max_length=10, min_length=10)
+    pan_name = serializers.CharField(max_length=100)
+    pan_dob = serializers.DateField()
+    pan_father_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    pan_image = serializers.ImageField(required=False, allow_null=True)
+    
+    def validate_pan_number(self, value):
+        value = value.upper()
+        try:
+            pan_validator(value)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(str(e.message))
+        return value
+    
+    def validate_pan_image(self, value):
+        if value:
+            max_size = 5 * 1024 * 1024  # 5MB
+            if value.size > max_size:
+                raise serializers.ValidationError(
+                    f'File size must be under 5MB. Current: {value.size / (1024*1024):.2f}MB'
+                )
+        return value
+
+
 class IdentityProofSerializer(serializers.ModelSerializer):
     """Serializer for Identity Proof display."""
     aadhaar_masked = serializers.CharField(read_only=True)

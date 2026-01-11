@@ -343,22 +343,74 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class ResetPasswordSerializer(serializers.Serializer):
     """
-    Serializer for password reset
+    Serializer for password reset with OTP
     """
-    token = serializers.CharField()
+    email = serializers.EmailField()
+    otp_code = serializers.CharField(max_length=6, min_length=6)
     new_password = serializers.CharField(min_length=8, write_only=True)
     confirm_password = serializers.CharField(min_length=8, write_only=True)
     
-    def validate_token(self, value):
-        """Validate reset token"""
+    def validate(self, data):
+        """Validate OTP and user"""
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.conf import settings
+        
+        email = data.get('email', '').lower()
+        otp_code = data.get('otp_code', '').strip()
+        
+        # Find user
         try:
-            reset_token = PasswordResetToken.objects.get(token=value)
-            if not reset_token.is_valid():
-                raise serializers.ValidationError("Reset token has expired or already used.")
-            self.reset_token = reset_token
-        except PasswordResetToken.DoesNotExist:
-            raise serializers.ValidationError("Invalid reset token.")
-        return value
+            user = User.objects.get(email=email, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({
+                'email': 'No account found with this email.'
+            })
+        
+        # Check if OTP exists
+        if not user.password_reset_otp:
+            raise serializers.ValidationError({
+                'otp_code': 'No password reset OTP found. Please request a new one.'
+            })
+        
+        # Check OTP expiry (10 minutes)
+        otp_expiry_minutes = 10
+        if user.password_reset_otp_created_at:
+            expiry_time = user.password_reset_otp_created_at + timedelta(minutes=otp_expiry_minutes)
+            if timezone.now() > expiry_time:
+                raise serializers.ValidationError({
+                    'otp_code': 'OTP has expired. Please request a new one.'
+                })
+        
+        # Increment attempt counter
+        max_attempts = getattr(settings, 'OTP_MAX_ATTEMPTS', 5)
+        user.password_reset_otp_attempt_count = (user.password_reset_otp_attempt_count or 0) + 1
+        
+        # Check max attempts
+        if user.password_reset_otp_attempt_count > max_attempts:
+            user.password_reset_otp = None
+            user.password_reset_otp_created_at = None
+            user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+            raise serializers.ValidationError({
+                'otp_code': 'Too many failed attempts. Please request a new OTP.'
+            })
+        
+        # Validate OTP
+        if user.password_reset_otp != otp_code:
+            user.save(update_fields=['password_reset_otp_attempt_count'])
+            raise serializers.ValidationError({
+                'otp_code': 'Invalid OTP code. Please try again.'
+            })
+        
+        # Password confirmation check
+        if data.get('new_password') != data.get('confirm_password'):
+            raise serializers.ValidationError({
+                'confirm_password': 'Passwords do not match.'
+            })
+        
+        # Store user for later use
+        self.user = user
+        return data
     
     def validate_new_password(self, value):
         """Validate password strength"""
@@ -376,13 +428,6 @@ class ResetPasswordSerializer(serializers.Serializer):
         
         return value
     
-    def validate(self, data):
-        """Validate password confirmation"""
-        if data.get('new_password') != data.get('confirm_password'):
-            raise serializers.ValidationError({
-                "confirm_password": "Passwords do not match."
-            })
-        return data
 
 
 class ChangePasswordSerializer(serializers.Serializer):

@@ -103,6 +103,11 @@ class User(models.Model):
     email_otp_created_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when email OTP was generated")
     email_otp_attempt_count = models.IntegerField(default=0, help_text="Number of OTP verification attempts")
     
+    # Password Reset OTP fields
+    password_reset_otp = models.CharField(max_length=10, blank=True, null=True, help_text="Password reset OTP code")
+    password_reset_otp_created_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when password reset OTP was generated")
+    password_reset_otp_attempt_count = models.IntegerField(default=0, help_text="Number of password reset OTP verification attempts")
+    
     # Direct role reference (for quick access, synced with UserRoleAssignment)
     user_role = models.CharField(
         max_length=20,
@@ -624,3 +629,7 @@ class UserActivityLog(models.Model):
         """Clean up old activity logs."""
         threshold = timezone.now() - timedelta(days=days)
         return cls.objects.filter(created_at__lt=threshold).delete()
+
+
+# Import email models to register them with Django's app registry
+from .email_models import EmailLog, EmailTemplate

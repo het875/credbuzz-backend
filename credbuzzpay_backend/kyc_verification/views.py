@@ -14,6 +14,7 @@ API views for KYC/Onboarding system with:
 import random
 import string
 from datetime import timedelta
+from venv import logger
 
 from django.utils import timezone
 from django.db import transaction
@@ -455,7 +456,18 @@ class AadhaarDetailsView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         identity_proof = kyc_app.identity_proof
-        identity_proof.aadhaar_number = serializer.validated_data['aadhaar_number']
+
+        # Prevent duplicate submissions: if the same Aadhaar number already saved for this user,
+        # return a clear response and avoid creating duplicate entries or updating timestamps.
+        submitted_aadhaar = serializer.validated_data['aadhaar_number']
+        if identity_proof.aadhaar_number and identity_proof.aadhaar_number == submitted_aadhaar:
+            return Response({
+                'success': True,
+                'message': 'Aadhaar details already submitted for this account.',
+                'aadhaar_masked': identity_proof.aadhaar_masked
+            }, status=status.HTTP_200_OK)
+
+        identity_proof.aadhaar_number = submitted_aadhaar
         identity_proof.aadhaar_name = serializer.validated_data['aadhaar_name']
         identity_proof.aadhaar_dob = serializer.validated_data['aadhaar_dob']
         identity_proof.aadhaar_address = serializer.validated_data.get('aadhaar_address', '')
@@ -524,7 +536,29 @@ class AadhaarUploadView(APIView):
                 'message': f'Cannot upload Aadhaar images. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = AadhaarUploadSerializer(data=request.data)
+        # Support both field names: 'aadhaar_front_image'/'aadhaar_back_image' (expected)
+        # and legacy/alternate 'aadhaar_front'/'aadhaar_back' used by some clients.
+        data = request.data.copy()
+        front_file = request.FILES.get('aadhaar_front') or request.FILES.get('aadhaar_front_image')
+        back_file = request.FILES.get('aadhaar_back') or request.FILES.get('aadhaar_back_image')
+
+        if front_file:
+            data['aadhaar_front_image'] = front_file
+        if back_file:
+            data['aadhaar_back_image'] = back_file
+
+        # Ensure both files are present
+        if not data.get('aadhaar_front_image') or not data.get('aadhaar_back_image'):
+            return Response({
+                'success': False,
+                'message': 'Both aadhaar_front_image and aadhaar_back_image files are required.',
+                'errors': {
+                    'aadhaar_front_image': ['No file was submitted.'] if not data.get('aadhaar_front_image') else [],
+                    'aadhaar_back_image': ['No file was submitted.'] if not data.get('aadhaar_back_image') else []
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = AadhaarUploadSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         
         identity_proof = kyc_app.identity_proof
@@ -625,7 +659,17 @@ class PANDetailsView(APIView):
         serializer.is_valid(raise_exception=True)
         
         identity_proof = kyc_app.identity_proof
-        identity_proof.pan_number = serializer.validated_data['pan_number']
+        submitted_pan = serializer.validated_data['pan_number']
+
+        # Prevent duplicate PAN submissions for the same user
+        if identity_proof.pan_number and identity_proof.pan_number == submitted_pan:
+            return Response({
+                'success': True,
+                'message': 'PAN details already submitted for this account.',
+                'pan_masked': identity_proof.pan_masked
+            }, status=status.HTTP_200_OK)
+
+        identity_proof.pan_number = submitted_pan
         identity_proof.pan_name = serializer.validated_data['pan_name']
         identity_proof.pan_dob = serializer.validated_data['pan_dob']
         identity_proof.pan_father_name = serializer.validated_data.get('pan_father_name', '')
@@ -727,6 +771,178 @@ class PANUploadView(APIView):
         return Response({
             'success': True,
             'message': 'PAN image uploaded successfully.'
+        }, status=status.HTTP_200_OK)
+
+
+# =============================================================================
+# IDENTITY PROOF UPDATE VIEWS (FOR PROFILE UPDATES)
+# =============================================================================
+
+class AadhaarUpdateView(APIView):
+    """
+    Update Aadhaar details and optionally images (for profile updates).
+    
+    PUT /api/kyc/identity/aadhaar/update/
+    FormData or JSON:
+        aadhaar_number: string (required)
+        aadhaar_name: string (required)
+        aadhaar_dob: date (required)
+        aadhaar_address: string (optional)
+        aadhaar_front_image: file (optional - both images required if updating)
+        aadhaar_back_image: file (optional - both images required if updating)
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def put(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found. Please complete KYC first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        kyc_app = user.kyc_application
+        identity_proof = kyc_app.identity_proof
+        
+        # Handle file uploads from request.FILES
+        data = request.data.copy()
+        front_file = request.FILES.get('aadhaar_front') or request.FILES.get('aadhaar_front_image')
+        back_file = request.FILES.get('aadhaar_back') or request.FILES.get('aadhaar_back_image')
+        
+        if front_file:
+            data['aadhaar_front_image'] = front_file
+        if back_file:
+            data['aadhaar_back_image'] = back_file
+        
+        from .serializers import AadhaarUpdateSerializer
+        serializer = AadhaarUpdateSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        
+        submitted_aadhaar = serializer.validated_data['aadhaar_number']
+        
+        # Check if the new Aadhaar number already exists (same as current)
+        if identity_proof.aadhaar_number and identity_proof.aadhaar_number == submitted_aadhaar:
+            # Same Aadhaar - allow updating other details but inform user
+            update_message = 'Aadhaar number unchanged. Other details updated.'
+        else:
+            # Different Aadhaar - check if it's already used by this user in history
+            # (Optional: Add cross-user uniqueness check here if needed)
+            update_message = 'Aadhaar details updated successfully.'
+            identity_proof.aadhaar_number = submitted_aadhaar
+        
+        # Update details
+        identity_proof.aadhaar_name = serializer.validated_data['aadhaar_name']
+        identity_proof.aadhaar_dob = serializer.validated_data['aadhaar_dob']
+        identity_proof.aadhaar_address = serializer.validated_data.get('aadhaar_address', '')
+        
+        # Update images if provided
+        if serializer.validated_data.get('aadhaar_front_image') and serializer.validated_data.get('aadhaar_back_image'):
+            # Delete old images
+            if identity_proof.aadhaar_front_image:
+                identity_proof.aadhaar_front_image.delete(save=False)
+            if identity_proof.aadhaar_back_image:
+                identity_proof.aadhaar_back_image.delete(save=False)
+            
+            identity_proof.aadhaar_front_image = serializer.validated_data['aadhaar_front_image']
+            identity_proof.aadhaar_back_image = serializer.validated_data['aadhaar_back_image']
+            identity_proof.aadhaar_submitted_at = timezone.now()
+        
+        identity_proof.save()
+        
+        # Log action
+        KYCAuditLog.log_action(
+            kyc_application=kyc_app,
+            action=AuditAction.DOCUMENT_UPDATED,
+            performed_by=user,
+            remarks='Aadhaar details updated via profile',
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        return Response({
+            'success': True,
+            'message': update_message,
+            'aadhaar_masked': identity_proof.aadhaar_masked,
+            'images_updated': bool(serializer.validated_data.get('aadhaar_front_image'))
+        }, status=status.HTTP_200_OK)
+
+
+class PANUpdateView(APIView):
+    """
+    Update PAN details and optionally image (for profile updates).
+    
+    PUT /api/kyc/identity/pan/update/
+    FormData or JSON:
+        pan_number: string (required)
+        pan_name: string (required)
+        pan_dob: date (required)
+        pan_father_name: string (optional)
+        pan_image: file (optional)
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def put(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found. Please complete KYC first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        kyc_app = user.kyc_application
+        identity_proof = kyc_app.identity_proof
+        
+        from .serializers import PANUpdateSerializer
+        serializer = PANUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        submitted_pan = serializer.validated_data['pan_number']
+        
+        # Check if the new PAN number already exists (same as current)
+        if identity_proof.pan_number and identity_proof.pan_number == submitted_pan:
+            # Same PAN - allow updating other details but inform user
+            update_message = 'PAN number unchanged. Other details updated.'
+        else:
+            # Different PAN - check if it's already used by this user in history
+            # (Optional: Add cross-user uniqueness check here if needed)
+            update_message = 'PAN details updated successfully.'
+            identity_proof.pan_number = submitted_pan
+        
+        # Update details
+        identity_proof.pan_name = serializer.validated_data['pan_name']
+        identity_proof.pan_dob = serializer.validated_data['pan_dob']
+        identity_proof.pan_father_name = serializer.validated_data.get('pan_father_name', '')
+        
+        # Update image if provided
+        if serializer.validated_data.get('pan_image'):
+            # Delete old image
+            if identity_proof.pan_image:
+                identity_proof.pan_image.delete(save=False)
+            
+            identity_proof.pan_image = serializer.validated_data['pan_image']
+            identity_proof.pan_submitted_at = timezone.now()
+        
+        identity_proof.save()
+        
+        # Log action
+        KYCAuditLog.log_action(
+            kyc_application=kyc_app,
+            action=AuditAction.DOCUMENT_UPDATED,
+            performed_by=user,
+            remarks='PAN details updated via profile',
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        return Response({
+            'success': True,
+            'message': update_message,
+            'pan_masked': identity_proof.pan_masked,
+            'image_updated': bool(serializer.validated_data.get('pan_image'))
         }, status=status.HTTP_200_OK)
 
 
@@ -1391,6 +1607,16 @@ class KYCAdminReviewView(APIView):
             audit_action = AuditAction.ADMIN_APPROVED
             message = 'KYC approved successfully.'
             
+            # Send KYC completion welcome email
+            try:
+                from users_auth.email_service import send_kyc_completion_welcome_email
+                send_kyc_completion_welcome_email(
+                    email=kyc_app.user.email,
+                    user_name=kyc_app.user.get_full_name() or kyc_app.user.username
+                )
+            except Exception as e:
+                logger.error(f"Failed to send KYC completion email: {str(e)}")
+            
         elif action == 'reject':
             if kyc_app.status not in [KYCStatus.SUBMITTED, KYCStatus.UNDER_REVIEW]:
                 return Response({
@@ -1401,6 +1627,18 @@ class KYCAdminReviewView(APIView):
             kyc_app.reject(admin_user, remarks)
             audit_action = AuditAction.ADMIN_REJECTED
             message = 'KYC rejected.'
+            
+            # Send KYC rejection email
+            try:
+                from users_auth.email_service import send_kyc_rejection_email
+                send_kyc_rejection_email(
+                    email=kyc_app.user.email,
+                    user_name=kyc_app.user.get_full_name() or kyc_app.user.username,
+                    rejection_reason=remarks or "Your KYC application did not meet our verification requirements.",
+                    rejected_by=admin_user.get_full_name() or admin_user.username
+                )
+            except Exception as e:
+                logger.error(f"Failed to send KYC rejection email: {str(e)}")
             
         elif action == 'resubmit':
             if kyc_app.status not in [KYCStatus.SUBMITTED, KYCStatus.UNDER_REVIEW]:

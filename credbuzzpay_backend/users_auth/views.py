@@ -2,6 +2,11 @@
 Views for users_auth app
 All user authentication and management endpoints
 """
+import logging
+import random
+import re
+
+logger = logging.getLogger(__name__)
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -405,6 +410,9 @@ class LogoutView(APIView):
 class ForgotPasswordView(APIView):
     """
     API endpoint for forgot password request
+    Generates and sends a 6-digit OTP to email (and mobile if available)
+    OTP is valid for 10 minutes
+    
     POST /api/auth-user/forgot-password/
     """
     permission_classes = [AllowAny]
@@ -418,26 +426,56 @@ class ForgotPasswordView(APIView):
             # Check if user exists
             try:
                 user = User.objects.get(email=email, is_active=True)
-                # Create reset token
-                reset_token = PasswordResetToken.create_token(user)
                 
-                # In production, you would send this via email
-                # For testing, we return the token in response
-                return Response({
+                # Generate 6-digit OTP
+                otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+                
+                # Store OTP with timestamp
+                user.password_reset_otp = otp_code
+                user.password_reset_otp_created_at = timezone.now()
+                user.password_reset_otp_attempt_count = 0
+                user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+                
+                # Send OTP to email
+                try:
+                    from .email_service import send_password_reset_otp_email
+                    # Build a safe user_name fallback
+                    user_name = getattr(user, 'full_name', '') or f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip() or getattr(user, 'username', user.email)
+                    email_sent = send_password_reset_otp_email(
+                        email=user.email,
+                        otp_code=otp_code,
+                        user_name=user_name
+                    )
+                    if not email_sent:
+                        logger.warning(f"Password reset OTP email failed to send to {user.email}")
+                except Exception as e:
+                    logger.error(f"Error sending password reset OTP email: {str(e)}")
+                
+                # TODO: Send OTP to mobile if phone_number exists
+                # if user.phone_number:
+                #     send_sms_otp(user.phone_number, otp_code)
+                
+                response_data = {
                     'success': True,
-                    'message': 'Password reset instructions sent to your email.',
+                    'message': 'Password reset OTP has been sent to your email.',
                     'data': {
-                        # Remove this in production - only for testing
-                        'reset_token': reset_token.token
+                        'email': user.email,
+                        'expires_in_minutes': 10
                     }
-                }, status=status.HTTP_200_OK)
+                }
+                
+                # Include OTP in DEBUG mode for testing
+                if settings.DEBUG:
+                    response_data['data']['debug_otp'] = otp_code
+                
+                return Response(response_data, status=status.HTTP_200_OK)
             except User.DoesNotExist:
                 pass
             
             # Always return success to prevent email enumeration
             return Response({
                 'success': True,
-                'message': 'If an account with this email exists, password reset instructions have been sent.'
+                'message': 'If an account with this email exists, password reset OTP has been sent.'
             }, status=status.HTTP_200_OK)
         
         return Response({
@@ -449,8 +487,16 @@ class ForgotPasswordView(APIView):
 
 class ResetPasswordView(APIView):
     """
-    API endpoint for password reset
+    API endpoint for password reset with OTP
     POST /api/auth-user/reset-password/
+    
+    Request body:
+    {
+        "email": "user@example.com",
+        "otp_code": "123456",
+        "new_password": "NewSecurePass123",
+        "confirm_password": "NewSecurePass123"
+    }
     """
     permission_classes = [AllowAny]
     
@@ -458,20 +504,33 @@ class ResetPasswordView(APIView):
         serializer = ResetPasswordSerializer(data=request.data)
         
         if serializer.is_valid():
-            reset_token = serializer.reset_token
-            user = reset_token.user
+            user = serializer.user
             new_password = serializer.validated_data['new_password']
             
             with transaction.atomic():
                 # Update password
                 user.set_password(new_password)
-                user.save()
                 
-                # Mark token as used
-                reset_token.mark_as_used()
+                # Clear OTP after successful reset
+                user.password_reset_otp = None
+                user.password_reset_otp_created_at = None
+                user.password_reset_otp_attempt_count = 0
+                
+                user.save()
                 
                 # Invalidate all existing sessions
                 UserSession.objects.filter(user=user, is_active=True).update(is_active=False)
+            
+            # Send password reset confirmation email
+            try:
+                from .email_service import send_password_reset_confirmation_email
+                user_name = getattr(user, 'full_name', '') or f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip() or getattr(user, 'username', user.email)
+                send_password_reset_confirmation_email(
+                    email=user.email,
+                    user_name=user_name
+                )
+            except Exception as e:
+                logger.error(f"Error sending password reset confirmation email: {str(e)}")
             
             return Response({
                 'success': True,
@@ -1101,6 +1160,90 @@ class ResendRegistrationOTPView(APIView):
                 'email': user.email,
                 'email_sent': email_sent,
                 'expires_in_minutes': otp_expiry_minutes,
+            }
+        }
+        
+        # Include OTP in response only in DEBUG mode for testing
+        if settings.DEBUG:
+            response_data['data']['test_otp'] = otp_code
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class ResendPasswordResetOTPView(APIView):
+    """
+    API endpoint for resending password reset OTP.
+    
+    POST /api/auth-user/resend-password-reset-otp/
+    
+    Request body:
+    {
+        "email": "user@example.com"
+    }
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = []
+    
+    def post(self, request):
+        """
+        Resend password reset OTP.
+        
+        Logic:
+        1. Find user by email
+        2. Generate new OTP
+        3. Store OTP with timestamp
+        4. Send OTP via email (and mobile if available)
+        5. Return success with OTP expiry time
+        """
+        from .email_service import send_password_reset_otp_email
+        
+        email = request.data.get('email', '').lower()
+        
+        # Validate required fields
+        if not email:
+            return Response({
+                'success': False,
+                'message': 'Email is required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find user by email
+        try:
+            user = User.objects.get(email=email, is_active=True)
+        except User.DoesNotExist:
+            # Return success to prevent email enumeration
+            return Response({
+                'success': True,
+                'message': 'If an account with this email exists, a new OTP has been sent.'
+            }, status=status.HTTP_200_OK)
+        
+        # Generate new OTP
+        otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        
+        # Update user with new OTP
+        user.password_reset_otp = otp_code
+        user.password_reset_otp_created_at = timezone.now()
+        user.password_reset_otp_attempt_count = 0  # Reset attempts on resend
+        user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+        
+        # Send OTP via email
+        user_name = getattr(user, 'full_name', '') or f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip() or getattr(user, 'username', user.email)
+        email_sent = send_password_reset_otp_email(
+            email=user.email,
+            otp_code=otp_code,
+            user_name=user_name
+        )
+        
+        # TODO: Send OTP to mobile if phone_number exists
+        # if user.phone_number:
+        #     send_sms_otp(user.phone_number, otp_code)
+        
+        response_data = {
+            'success': True,
+            'message': 'Password reset OTP has been resent to your email.',
+            'data': {
+                'email': user.email,
+                'email_sent': email_sent,
+                'expires_in_minutes': 10,
             }
         }
         

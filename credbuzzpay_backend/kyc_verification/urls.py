@@ -62,10 +62,12 @@ urlpatterns = [
     # Identity Proof - Aadhaar
     path('identity/aadhaar/', views.AadhaarDetailsView.as_view(), name='aadhaar-details'),
     path('identity/aadhaar/upload/', views.AadhaarUploadView.as_view(), name='aadhaar-upload'),
+    path('identity/aadhaar/update/', views.AadhaarUpdateView.as_view(), name='aadhaar-update'),
     
     # Identity Proof - PAN
     path('identity/pan/', views.PANDetailsView.as_view(), name='pan-details'),
     path('identity/pan/upload/', views.PANUploadView.as_view(), name='pan-upload'),
+    path('identity/pan/update/', views.PANUpdateView.as_view(), name='pan-update'),
     
     # Business Details
     path('business/', views.BusinessDetailsView.as_view(), name='business-details'),

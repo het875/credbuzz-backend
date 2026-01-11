@@ -1,0 +1,181 @@
+{
+  "info": {
+    "name": "KYC Profile Update APIs",
+    "description": "New endpoints for updating Aadhaar and PAN details with images during profile updates",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Update Aadhaar Details + Images",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "aadhaar_number",
+              "value": "123456789012",
+              "type": "text",
+              "description": "12-digit Aadhaar number"
+            },
+            {
+              "key": "aadhaar_name",
+              "value": "John Doe",
+              "type": "text",
+              "description": "Name as per Aadhaar"
+            },
+            {
+              "key": "aadhaar_dob",
+              "value": "1990-01-15",
+              "type": "text",
+              "description": "Date of birth (YYYY-MM-DD)"
+            },
+            {
+              "key": "aadhaar_address",
+              "value": "123 Main Street, City, State 123456",
+              "type": "text",
+              "description": "Address as per Aadhaar (optional)"
+            },
+            {
+              "key": "aadhaar_front_image",
+              "type": "file",
+              "description": "Front image (optional - both required if updating)",
+              "disabled": true
+            },
+            {
+              "key": "aadhaar_back_image",
+              "type": "file",
+              "description": "Back image (optional - both required if updating)",
+              "disabled": true
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/kyc/identity/aadhaar/update/",
+          "host": ["{{base_url}}"],
+          "path": ["kyc", "identity", "aadhaar", "update", ""]
+        },
+        "description": "Update Aadhaar details and optionally images.\n\n**Features:**\n- Update details only (without images)\n- Update details + images together\n- Images are optional\n- Prevents duplicate submissions\n\n**Response:**\n```json\n{\n    \"success\": true,\n    \"message\": \"Aadhaar details updated successfully.\",\n    \"aadhaar_masked\": \"XXXX-XXXX-9012\",\n    \"images_updated\": true\n}\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "Update Aadhaar Details Only (JSON)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"aadhaar_number\": \"123456789012\",\n    \"aadhaar_name\": \"John Doe Updated\",\n    \"aadhaar_dob\": \"1990-01-15\",\n    \"aadhaar_address\": \"Updated Address\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/kyc/identity/aadhaar/update/",
+          "host": ["{{base_url}}"],
+          "path": ["kyc", "identity", "aadhaar", "update", ""]
+        },
+        "description": "Update only Aadhaar details without changing images.\n\n**Use Case:** Correct name, DOB, or address without reuploading documents."
+      },
+      "response": []
+    },
+    {
+      "name": "Update PAN Details + Image",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "pan_number",
+              "value": "ABCDE1234F",
+              "type": "text",
+              "description": "10-character PAN number"
+            },
+            {
+              "key": "pan_name",
+              "value": "John Doe",
+              "type": "text",
+              "description": "Name as per PAN"
+            },
+            {
+              "key": "pan_dob",
+              "value": "1990-01-15",
+              "type": "text",
+              "description": "Date of birth (YYYY-MM-DD)"
+            },
+            {
+              "key": "pan_father_name",
+              "value": "Father Name",
+              "type": "text",
+              "description": "Father's name (optional)"
+            },
+            {
+              "key": "pan_image",
+              "type": "file",
+              "description": "PAN card image (optional)",
+              "disabled": true
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/kyc/identity/pan/update/",
+          "host": ["{{base_url}}"],
+          "path": ["kyc", "identity", "pan", "update", ""]
+        },
+        "description": "Update PAN details and optionally image.\n\n**Features:**\n- Update details only (without image)\n- Update details + image together\n- Image is optional\n- Prevents duplicate submissions\n\n**Response:**\n```json\n{\n    \"success\": true,\n    \"message\": \"PAN details updated successfully.\",\n    \"pan_masked\": \"XXXXX1234F\",\n    \"image_updated\": true\n}\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "Update PAN Details Only (JSON)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"pan_number\": \"ABCDE1234F\",\n    \"pan_name\": \"John Doe Updated\",\n    \"pan_dob\": \"1990-01-15\",\n    \"pan_father_name\": \"Updated Father Name\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/kyc/identity/pan/update/",
+          "host": ["{{base_url}}"],
+          "path": ["kyc", "identity", "pan", "update", ""]
+        },
+        "description": "Update only PAN details without changing image.\n\n**Use Case:** Correct name, DOB, or father's name without reuploading document."
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

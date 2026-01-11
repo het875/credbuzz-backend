@@ -18,10 +18,16 @@ from .views import (
     UserActivateView,
     VerifyRegistrationOTPView,
     ResendRegistrationOTPView,
+    ResendPasswordResetOTPView,
     UserActivityLogListView,
     MyActivityLogView,
     UserProfileWithAccessView,
     CreatePrivilegedUserView,
+)
+from .admin_email_views import (
+    SendMaintenanceEmailView,
+    SendImportantNoticeEmailView,
+    SendTestEmailView,
 )
 
 app_name = 'users_auth'
@@ -39,6 +45,7 @@ urlpatterns = [
     # Password management
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('resend-password-reset-otp/', ResendPasswordResetOTPView.as_view(), name='resend-password-reset-otp'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     
     # Token management
@@ -61,4 +68,9 @@ urlpatterns = [
     
     # System Setup (Protected by Secret Key)
     path('system/create-privileged-user/', CreatePrivilegedUserView.as_view(), name='create-privileged-user'),
+    
+    # Admin Email Operations
+    path('admin/emails/maintenance/', SendMaintenanceEmailView.as_view(), name='send-maintenance-email'),
+    path('admin/emails/notice/', SendImportantNoticeEmailView.as_view(), name='send-notice-email'),
+    path('admin/emails/test/', SendTestEmailView.as_view(), name='send-test-email'),
 ]
