@@ -737,7 +737,18 @@ class PANUploadView(APIView):
                 'message': f'Cannot upload PAN image. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = PANUploadSerializer(data=request.data)
+        # Accept alternate field names: 'pan', 'pan_photo', as well as 'pan_image'
+        data = request.data.copy()
+        pan_file = request.FILES.get('pan') or request.FILES.get('pan_photo') or request.FILES.get('pan_image')
+        if pan_file:
+            data['pan_image'] = pan_file
+
+        if not data.get('pan_image'):
+            return Response({
+                'pan_image': ['No file was submitted.']
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PANUploadSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         
         identity_proof = kyc_app.identity_proof
@@ -1088,7 +1099,18 @@ class SelfieUploadView(APIView):
                 'message': f'Cannot upload selfie. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = SelfieUploadSerializer(data=request.data)
+        # Accept both 'selfie' (legacy clients) and 'selfie_image' (canonical)
+        data = request.data.copy()
+        selfie_file = request.FILES.get('selfie') or request.FILES.get('selfie_image')
+        if selfie_file:
+            data['selfie_image'] = selfie_file
+
+        if not data.get('selfie_image'):
+            return Response({
+                'selfie_image': ['No file was submitted.']
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = SelfieUploadSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         
         verification_images = kyc_app.verification_images
@@ -1155,7 +1177,24 @@ class OfficePhotosUploadView(APIView):
                 'message': f'Cannot upload office photos. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = OfficePhotosUploadSerializer(data=request.data)
+        # Accept legacy field names used by some clients: 'office_sitting_photo'/'office_door_photo'
+        data = request.data.copy()
+        sitting = request.FILES.get('office_sitting_photo') or request.FILES.get('office_sitting_image')
+        door = request.FILES.get('office_door_photo') or request.FILES.get('office_door_image')
+        if sitting:
+            data['office_sitting_image'] = sitting
+        if door:
+            data['office_door_image'] = door
+
+        # Ensure both files are present
+        if not data.get('office_sitting_image') or not data.get('office_door_image'):
+            return Response({
+                'message': 'Both office_sitting_image and office_door_image files are required.',
+                'office_sitting_image': ['No file was submitted.'] if not data.get('office_sitting_image') else [],
+                'office_door_image': ['No file was submitted.'] if not data.get('office_door_image') else []
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = OfficePhotosUploadSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         
         verification_images = kyc_app.verification_images
@@ -1230,7 +1269,18 @@ class AddressProofUploadView(APIView):
                 'message': f'Cannot upload address proof. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = AddressProofUploadSerializer(data=request.data)
+        # Accept alternate field name 'address_proof' used by some clients
+        data = request.data.copy()
+        addr_file = request.FILES.get('address_proof') or request.FILES.get('address_proof_image')
+        if addr_file:
+            data['address_proof_image'] = addr_file
+
+        if not data.get('address_proof_image'):
+            return Response({
+                'address_proof_image': ['No file was submitted.']
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = AddressProofUploadSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         
         verification_images = kyc_app.verification_images
@@ -1359,7 +1409,13 @@ class BankDetailsView(APIView):
                 'message': f'Cannot update bank details. KYC status: {kyc_app.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = BankDetailsInputSerializer(data=request.data)
+        # Accept alternate bank document field name 'bank_doc' used by some clients
+        data = request.data.copy()
+        bank_doc = request.FILES.get('bank_doc') or request.FILES.get('bank_document')
+        if bank_doc:
+            data['bank_document'] = bank_doc
+
+        serializer = BankDetailsInputSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         
         bank_details = kyc_app.bank_details
