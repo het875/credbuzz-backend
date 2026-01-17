@@ -74,8 +74,12 @@ class OTPSendView(APIView):
         "email": "user@example.com",  // Required for EMAIL
         "phone": "9876543210"          // Required for PHONE
     }
+    
+    RBAC: Requires KYC app access and OTP_VERIFICATION feature
     """
     permission_classes = [IsAuthenticated]
+    app_code = 'KYC'
+    feature_code = 'OTP_VERIFICATION'
     
     def post(self, request):
         from users_auth.email_service import send_otp_email
@@ -962,6 +966,11 @@ class PANUpdateView(APIView):
 # =============================================================================
 
 class BusinessDetailsView(APIView):
+    """
+    RBAC: Requires KYC app access and KYC_SUBMISSION feature
+    """
+    app_code = 'KYC'
+    feature_code = 'KYC_SUBMISSION'
     """
     Submit or get business details.
     

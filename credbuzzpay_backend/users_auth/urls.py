@@ -23,6 +23,11 @@ from .views import (
     MyActivityLogView,
     UserProfileWithAccessView,
     CreatePrivilegedUserView,
+    VerifyForgotPasswordOTPView,
+    ResetPasswordWithTokenView,
+    ProfileSendOTPView,
+    ProfileVerifyOTPView,
+    ProfileChangePasswordView,
 )
 from .admin_email_views import (
     SendMaintenanceEmailView,
@@ -43,9 +48,21 @@ urlpatterns = [
     path('resend-registration-otp/', ResendRegistrationOTPView.as_view(), name='resend-registration-otp'),
     
     # Password management
+    # FLOW A: Forgot Password (Unauthenticated) - OTP + reset_token
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
-    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('verify-forgot-password-otp/', VerifyForgotPasswordOTPView.as_view(), name='verify-forgot-password-otp'),
+    path('reset-password-with-token/', ResetPasswordWithTokenView.as_view(), name='reset-password-with-token'),
     path('resend-password-reset-otp/', ResendPasswordResetOTPView.as_view(), name='resend-password-reset-otp'),
+    
+    # Legacy endpoint (kept for backward compatibility)
+    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    
+    # FLOW B: Profile Password Change (Authenticated) - access_token + OTP
+    path('profile/send-otp/', ProfileSendOTPView.as_view(), name='profile-send-otp'),
+    path('profile/verify-otp/', ProfileVerifyOTPView.as_view(), name='profile-verify-otp'),
+    path('profile/change-password/', ProfileChangePasswordView.as_view(), name='profile-change-password'),
+    
+    # OLD: Change password (authenticated, no OTP) - consider deprecating
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     
     # Token management

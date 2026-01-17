@@ -675,3 +675,240 @@ class CreatePrivilegedUserSerializer(serializers.Serializer):
         user.save()
         
         return user
+
+
+# =============================================================================
+# NEW PASSWORD RESET FLOW SERIALIZERS
+# =============================================================================
+
+class VerifyForgotPasswordOTPSerializer(serializers.Serializer):
+    """
+    Serializer for verifying OTP during forgot password flow.
+    Returns a short-lived reset_token if successful.
+    """
+    email = serializers.EmailField()
+    otp_code = serializers.CharField(max_length=6, min_length=6)
+    
+    def validate(self, data):
+        """Validate OTP and user"""
+        from datetime import timedelta
+        from django.conf import settings
+        
+        email = data.get('email', '').lower()
+        otp_code = data.get('otp_code', '').strip()
+        
+        # Find user
+        try:
+            user = User.objects.get(email=email, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({
+                'email': 'No account found with this email.'
+            })
+        
+        # Check if OTP exists
+        if not user.password_reset_otp:
+            raise serializers.ValidationError({
+                'otp_code': 'No password reset OTP found. Please request a new one.'
+            })
+        
+        # Check OTP expiry (10 minutes)
+        otp_expiry_minutes = 10
+        if user.password_reset_otp_created_at:
+            expiry_time = user.password_reset_otp_created_at + timedelta(minutes=otp_expiry_minutes)
+            if timezone.now() > expiry_time:
+                raise serializers.ValidationError({
+                    'otp_code': 'OTP has expired. Please request a new one.'
+                })
+        
+        # Increment attempt counter
+        max_attempts = getattr(settings, 'OTP_MAX_ATTEMPTS', 5)
+        user.password_reset_otp_attempt_count = (user.password_reset_otp_attempt_count or 0) + 1
+        
+        # Check max attempts
+        if user.password_reset_otp_attempt_count > max_attempts:
+            user.password_reset_otp = None
+            user.password_reset_otp_created_at = None
+            user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+            raise serializers.ValidationError({
+                'otp_code': 'Too many failed attempts. Please request a new OTP.'
+            })
+        
+        # Validate OTP
+        if user.password_reset_otp != otp_code:
+            user.save(update_fields=['password_reset_otp_attempt_count'])
+            raise serializers.ValidationError({
+                'otp_code': 'Invalid OTP code. Please try again.'
+            })
+        
+        # Store user for later use
+        self.user = user
+        return data
+
+
+class ResetPasswordWithTokenSerializer(serializers.Serializer):
+    """
+    Serializer for resetting password using reset_token (unauthenticated flow).
+    """
+    reset_token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate_new_password(self, value):
+        """Validate password strength"""
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        
+        if not re.search(r'[A-Z]', value):
+            raise serializers.ValidationError("Password must contain at least one uppercase letter.")
+        
+        if not re.search(r'[a-z]', value):
+            raise serializers.ValidationError("Password must contain at least one lowercase letter.")
+        
+        if not re.search(r'\d', value):
+            raise serializers.ValidationError("Password must contain at least one digit.")
+        
+        return value
+    
+    def validate(self, data):
+        """Validate reset_token and password confirmation"""
+        from .models import PasswordResetToken
+        
+        reset_token = data.get('reset_token')
+        
+        # Find valid reset token
+        try:
+            token_obj = PasswordResetToken.objects.get(token=reset_token)
+            
+            if not token_obj.is_valid():
+                raise serializers.ValidationError({
+                    'reset_token': 'Reset token is invalid or has expired. Please request a new password reset.'
+                })
+            
+            self.token_obj = token_obj
+            self.user = token_obj.user
+            
+        except PasswordResetToken.DoesNotExist:
+            raise serializers.ValidationError({
+                'reset_token': 'Invalid reset token.'
+            })
+        
+        # Password confirmation check
+        if data.get('new_password') != data.get('confirm_password'):
+            raise serializers.ValidationError({
+                'confirm_password': 'Passwords do not match.'
+            })
+        
+        return data
+
+
+class ProfileSendOTPSerializer(serializers.Serializer):
+    """
+    Serializer for sending OTP to authenticated user for sensitive actions.
+    """
+    action_type = serializers.ChoiceField(
+        choices=[('PASSWORD_CHANGE', 'Password Change'), ('PROFILE_UPDATE', 'Profile Update')],
+        default='PASSWORD_CHANGE'
+    )
+
+
+class ProfileVerifyOTPSerializer(serializers.Serializer):
+    """
+    Serializer for verifying OTP during authenticated profile actions.
+    """
+    otp_code = serializers.CharField(max_length=6, min_length=6)
+    action_type = serializers.ChoiceField(
+        choices=[('PASSWORD_CHANGE', 'Password Change'), ('PROFILE_UPDATE', 'Profile Update')],
+        default='PASSWORD_CHANGE'
+    )
+    
+    def validate(self, data):
+        """Validate OTP for authenticated user"""
+        from datetime import timedelta
+        from django.conf import settings
+        
+        user = self.context.get('user')
+        if not user:
+            raise serializers.ValidationError('User not found in context.')
+        
+        otp_code = data.get('otp_code', '').strip()
+        
+        # Check if OTP exists
+        if not user.password_reset_otp:
+            raise serializers.ValidationError({
+                'otp_code': 'No OTP found. Please request a new one.'
+            })
+        
+        # Check OTP expiry (5 minutes for profile actions)
+        otp_expiry_minutes = 5
+        if user.password_reset_otp_created_at:
+            expiry_time = user.password_reset_otp_created_at + timedelta(minutes=otp_expiry_minutes)
+            if timezone.now() > expiry_time:
+                raise serializers.ValidationError({
+                    'otp_code': 'OTP has expired. Please request a new one.'
+                })
+        
+        # Increment attempt counter
+        max_attempts = getattr(settings, 'OTP_MAX_ATTEMPTS', 3)
+        user.password_reset_otp_attempt_count = (user.password_reset_otp_attempt_count or 0) + 1
+        
+        # Check max attempts
+        if user.password_reset_otp_attempt_count > max_attempts:
+            user.password_reset_otp = None
+            user.password_reset_otp_created_at = None
+            user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+            raise serializers.ValidationError({
+                'otp_code': 'Too many failed attempts. Please request a new OTP.'
+            })
+        
+        # Validate OTP
+        if user.password_reset_otp != otp_code:
+            user.save(update_fields=['password_reset_otp_attempt_count'])
+            raise serializers.ValidationError({
+                'otp_code': 'Invalid OTP code. Please try again.'
+            })
+        
+        return data
+
+
+class ProfileChangePasswordSerializer(serializers.Serializer):
+    """
+    Serializer for changing password from profile (authenticated, after OTP verification).
+    """
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate_new_password(self, value):
+        """Validate password strength"""
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        
+        if not re.search(r'[A-Z]', value):
+            raise serializers.ValidationError("Password must contain at least one uppercase letter.")
+        
+        if not re.search(r'[a-z]', value):
+            raise serializers.ValidationError("Password must contain at least one lowercase letter.")
+        
+        if not re.search(r'\d', value):
+            raise serializers.ValidationError("Password must contain at least one digit.")
+        
+        return value
+    
+    def validate(self, data):
+        """Validate password confirmation and OTP verification"""
+        user = self.context.get('user')
+        if not user:
+            raise serializers.ValidationError('User not found in context.')
+        
+        # Check if OTP was recently verified (within last 5 minutes)
+        if not user.password_reset_otp:
+            raise serializers.ValidationError({
+                'non_field_errors': 'Please verify OTP first before changing password.'
+            })
+        
+        # Password confirmation check
+        if data.get('new_password') != data.get('confirm_password'):
+            raise serializers.ValidationError({
+                'confirm_password': 'Passwords do not match.'
+            })
+        
+        return data

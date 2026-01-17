@@ -28,6 +28,11 @@ from .serializers import (
     UserListSerializer,
     TokenRefreshSerializer,
     CreatePrivilegedUserSerializer,
+    VerifyForgotPasswordOTPSerializer,
+    ResetPasswordWithTokenSerializer,
+    ProfileSendOTPSerializer,
+    ProfileVerifyOTPSerializer,
+    ProfileChangePasswordSerializer,
 )
 from .jwt_utils import JWTManager
 from .authentication import JWTAuthentication, get_client_ip, get_user_agent
@@ -470,13 +475,12 @@ class ForgotPasswordView(APIView):
                 
                 return Response(response_data, status=status.HTTP_200_OK)
             except User.DoesNotExist:
-                pass
-            
-            # Always return success to prevent email enumeration
-            return Response({
-                'success': True,
-                'message': 'If an account with this email exists, password reset OTP has been sent.'
-            }, status=status.HTTP_200_OK)
+                # Return 404 if email doesn't exist
+                return Response({
+                    'success': False,
+                    'message': 'Email not found. Please check your email address.',
+                    'error': 'EMAIL_NOT_FOUND'
+                }, status=status.HTTP_404_NOT_FOUND)
         
         return Response({
             'success': False,
@@ -587,6 +591,289 @@ class ChangePasswordView(APIView):
             'message': 'Password change failed.',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# =============================================================================
+# NEW PASSWORD RESET FLOW VIEWS
+# =============================================================================
+
+class VerifyForgotPasswordOTPView(APIView):
+    """
+    API endpoint to verify OTP during forgot password flow (FLOW A - Unauthenticated).
+    After successful OTP verification, returns a short-lived reset_token.
+    
+    POST /api/auth-user/verify-forgot-password-otp/
+    Body:
+    {
+        "email": "user@example.com",
+        "otp_code": "123456"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "OTP verified successfully",
+        "data": {
+            "reset_token": "abc123...",
+            "expires_in_minutes": 15
+        }
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = VerifyForgotPasswordOTPSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.user
+            
+            # Generate reset_token (15 minutes validity)
+            reset_token_obj = PasswordResetToken.create_token(user, expiry_hours=0.25)  # 15 minutes
+            
+            # Clear OTP after successful verification
+            user.password_reset_otp = None
+            user.password_reset_otp_created_at = None
+            user.password_reset_otp_attempt_count = 0
+            user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+            
+            return Response({
+                'success': True,
+                'message': 'OTP verified successfully. Use the reset_token to set your new password.',
+                'data': {
+                    'reset_token': reset_token_obj.token,
+                    'expires_in_minutes': 15
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'message': 'OTP verification failed.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResetPasswordWithTokenView(APIView):
+    """
+    API endpoint to reset password using reset_token (FLOW A - Unauthenticated).
+    This endpoint does not require authentication, only a valid reset_token.
+    
+    POST /api/auth-user/reset-password-with-token/
+    Body:
+    {
+        "reset_token": "abc123...",
+        "new_password": "NewSecure@123",
+        "confirm_password": "NewSecure@123"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = ResetPasswordWithTokenSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = serializer.user
+            token_obj = serializer.token_obj
+            new_password = serializer.validated_data['new_password']
+            
+            with transaction.atomic():
+                # Update password
+                user.set_password(new_password)
+                user.save()
+                
+                # Mark token as used
+                token_obj.mark_as_used()
+                
+                # Invalidate all existing sessions for security
+                UserSession.objects.filter(user=user, is_active=True).update(is_active=False)
+            
+            # Send password reset confirmation email
+            try:
+                from .email_service import send_password_reset_confirmation_email
+                user_name = user.full_name or user.email.split('@')[0]
+                send_password_reset_confirmation_email(
+                    email=user.email,
+                    user_name=user_name
+                )
+            except Exception as e:
+                logger.error(f"Error sending password reset confirmation email: {str(e)}")
+            
+            return Response({
+                'success': True,
+                'message': 'Password reset successful. Please login with your new password.'
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'message': 'Password reset failed.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileSendOTPView(APIView):
+    """
+    API endpoint to send OTP for authenticated profile actions (FLOW B - Authenticated).
+    Used for sensitive operations like password change from profile.
+    
+    POST /api/auth-user/profile/send-otp/
+    Headers: Authorization: Bearer <access_token>
+    Body:
+    {
+        "action_type": "PASSWORD_CHANGE"  // or "PROFILE_UPDATE"
+    }
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ProfileSendOTPSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = request.user
+            action_type = serializer.validated_data.get('action_type', 'PASSWORD_CHANGE')
+            
+            # Generate 6-digit OTP
+            otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # Store OTP with timestamp (shorter expiry for profile actions: 5 minutes)
+            user.password_reset_otp = otp_code
+            user.password_reset_otp_created_at = timezone.now()
+            user.password_reset_otp_attempt_count = 0
+            user.save(update_fields=['password_reset_otp', 'password_reset_otp_created_at', 'password_reset_otp_attempt_count'])
+            
+            # Send OTP to email
+            try:
+                from .email_service import send_password_reset_otp_email
+                user_name = user.full_name or user.email.split('@')[0]
+                email_sent = send_password_reset_otp_email(
+                    email=user.email,
+                    otp_code=otp_code,
+                    user_name=user_name
+                )
+                if not email_sent:
+                    logger.warning(f"Profile OTP email failed to send to {user.email}")
+            except Exception as e:
+                logger.error(f"Error sending profile OTP email: {str(e)}")
+            
+            response_data = {
+                'success': True,
+                'message': f'OTP has been sent to your email for {action_type.replace("_", " ").lower()}.',
+                'data': {
+                    'email': user.email,
+                    'action_type': action_type,
+                    'expires_in_minutes': 5
+                }
+            }
+            
+            # Include OTP in DEBUG mode for testing
+            if settings.DEBUG:
+                response_data['data']['debug_otp'] = otp_code
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'message': 'Failed to send OTP.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileVerifyOTPView(APIView):
+    """
+    API endpoint to verify OTP for authenticated profile actions (FLOW B - Authenticated).
+    
+    POST /api/auth-user/profile/verify-otp/
+    Headers: Authorization: Bearer <access_token>
+    Body:
+    {
+        "otp_code": "123456",
+        "action_type": "PASSWORD_CHANGE"
+    }
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ProfileVerifyOTPSerializer(data=request.data, context={'user': request.user})
+        
+        if serializer.is_valid():
+            # OTP is valid, user can proceed with the action
+            # Note: We keep the OTP active for a short time so user can complete the action
+            
+            return Response({
+                'success': True,
+                'message': 'OTP verified successfully. You can now proceed with the action.'
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'message': 'OTP verification failed.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileChangePasswordView(APIView):
+    """
+    API endpoint to change password from profile after OTP verification (FLOW B - Authenticated).
+    Requires prior OTP verification via ProfileVerifyOTPView.
+    
+    POST /api/auth-user/profile/change-password/
+    Headers: Authorization: Bearer <access_token>
+    Body:
+    {
+        "new_password": "NewSecure@123",
+        "confirm_password": "NewSecure@123"
+    }
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ProfileChangePasswordSerializer(data=request.data, context={'user': request.user})
+        
+        if serializer.is_valid():
+            user = request.user
+            new_password = serializer.validated_data['new_password']
+            
+            with transaction.atomic():
+                # Update password
+                user.set_password(new_password)
+                
+                # Clear OTP after successful password change
+                user.password_reset_otp = None
+                user.password_reset_otp_created_at = None
+                user.password_reset_otp_attempt_count = 0
+                
+                user.save()
+                
+                # Optionally invalidate other sessions (keep current session)
+                # UserSession.objects.filter(user=user, is_active=True).exclude(token_id=request.auth.get('jti')).update(is_active=False)
+            
+            # Send password change confirmation email
+            try:
+                from .email_service import send_password_reset_confirmation_email
+                user_name = user.full_name or user.email.split('@')[0]
+                send_password_reset_confirmation_email(
+                    email=user.email,
+                    user_name=user_name
+                )
+            except Exception as e:
+                logger.error(f"Error sending password change confirmation email: {str(e)}")
+            
+            return Response({
+                'success': True,
+                'message': 'Password changed successfully from profile.'
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'message': 'Password change failed.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# =============================================================================
+# END OF NEW PASSWORD RESET FLOW
+# =============================================================================
 
 
 class RefreshTokenView(APIView):
