@@ -42,7 +42,13 @@ from .serializers import (
     KYCApplicationStatusSerializer, KYCApplicationDetailSerializer,
     KYCApplicationAdminDetailSerializer, KYCAdminListSerializer,
     KYCStartSerializer, KYCSubmitSerializer, KYCReviewActionSerializer,
-    KYCProgressSerializer, IdentityProofAdminSerializer, BankDetailsAdminSerializer
+    KYCProgressSerializer, IdentityProofAdminSerializer, BankDetailsAdminSerializer,
+    # Step-wise GET API serializers
+    AadhaarDetailsResponseSerializer, AadhaarImagesResponseSerializer,
+    PANDetailsResponseSerializer, PANImageResponseSerializer,
+    SelfieImageResponseSerializer, OfficeImagesResponseSerializer,
+    AddressProofImageResponseSerializer, BankDetailsResponseSerializer,
+    BankDocumentResponseSerializer
 )
 from .permissions import IsKYCOwner, IsKYCAdmin, CanAccessKYCStep
 
@@ -958,6 +964,293 @@ class PANUpdateView(APIView):
             'message': update_message,
             'pan_masked': identity_proof.pan_masked,
             'image_updated': bool(serializer.validated_data.get('pan_image'))
+        }, status=status.HTTP_200_OK)
+
+
+# =============================================================================
+# STEP-WISE GET API VIEWS
+# =============================================================================
+
+class GetAadhaarDetailsView(APIView):
+    """
+    Get Aadhaar details with both masked and unmasked values.
+    
+    GET /api/kyc/identity/aadhaar/details/
+    
+    Returns:
+    - aadhaar_number (unmasked for verification)
+    - aadhaar_number_masked
+    - aadhaar_name, aadhaar_dob, aadhaar_address
+    - is_complete, is_verified, submitted_at
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        identity_proof = user.kyc_application.identity_proof
+        serializer = AadhaarDetailsResponseSerializer(identity_proof, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetAadhaarImagesView(APIView):
+    """
+    Get Aadhaar images (front and back).
+    
+    GET /api/kyc/identity/aadhaar/images/
+    
+    Returns:
+    - aadhaar_front_url
+    - aadhaar_back_url
+    - has_images (boolean)
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        identity_proof = user.kyc_application.identity_proof
+        serializer = AadhaarImagesResponseSerializer(identity_proof, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetPANDetailsView(APIView):
+    """
+    Get PAN details with both masked and unmasked values.
+    
+    GET /api/kyc/identity/pan/details/
+    
+    Returns:
+    - pan_number (unmasked for verification)
+    - pan_number_masked
+    - pan_name, pan_dob, pan_father_name
+    - is_complete, is_verified, submitted_at
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        identity_proof = user.kyc_application.identity_proof
+        serializer = PANDetailsResponseSerializer(identity_proof, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetPANImageView(APIView):
+    """
+    Get PAN image.
+    
+    GET /api/kyc/identity/pan/image/
+    
+    Returns:
+    - pan_image_url
+    - has_image (boolean)
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        identity_proof = user.kyc_application.identity_proof
+        serializer = PANImageResponseSerializer(identity_proof, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetSelfieImageView(APIView):
+    """
+    Get selfie image.
+    
+    GET /api/kyc/verification/selfie/get/
+    
+    Returns:
+    - selfie_url
+    - has_image (boolean)
+    - is_complete, is_verified
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        verification_images = user.kyc_application.verification_images
+        serializer = SelfieImageResponseSerializer(verification_images, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetOfficeImagesView(APIView):
+    """
+    Get office images (sitting inside and door with name board).
+    
+    GET /api/kyc/verification/office/get/
+    
+    Returns:
+    - office_sitting_url
+    - office_door_url
+    - has_images (boolean)
+    - is_complete, is_verified
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        verification_images = user.kyc_application.verification_images
+        serializer = OfficeImagesResponseSerializer(verification_images, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetAddressProofImageView(APIView):
+    """
+    Get address proof image.
+    
+    GET /api/kyc/verification/address-proof/get/
+    
+    Returns:
+    - address_proof_url
+    - address_proof_type
+    - has_image (boolean)
+    - is_complete, is_verified
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        verification_images = user.kyc_application.verification_images
+        serializer = AddressProofImageResponseSerializer(verification_images, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetBankDetailsView(APIView):
+    """
+    Get bank details with both masked and unmasked values.
+    
+    GET /api/kyc/bank/details/
+    
+    Returns:
+    - account_number (unmasked for verification)
+    - account_number_masked
+    - account_holder_name, ifsc_code, account_type
+    - bank_name, branch_name, branch_address
+    - is_complete, is_verified
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        bank_details = user.kyc_application.bank_details
+        serializer = BankDetailsResponseSerializer(bank_details, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetBankDocumentView(APIView):
+    """
+    Get bank document image.
+    
+    GET /api/kyc/bank/document/
+    
+    Returns:
+    - bank_document_url
+    - has_document (boolean)
+    """
+    permission_classes = [IsAuthenticated, IsKYCOwner]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        bank_details = user.kyc_application.bank_details
+        serializer = BankDocumentResponseSerializer(bank_details, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
         }, status=status.HTTP_200_OK)
 
 

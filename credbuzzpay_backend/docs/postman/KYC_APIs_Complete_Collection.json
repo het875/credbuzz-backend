@@ -1,0 +1,918 @@
+{
+  "info": {
+    "name": "KYC APIs - Complete Collection",
+    "description": "Complete collection of KYC APIs including old (combined) and new (step-wise) endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "KYC Status & Management",
+      "item": [
+        {
+          "name": "Get KYC Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/status/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "status", ""]
+            }
+          }
+        },
+        {
+          "name": "Start KYC Process",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/start/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "start", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Full KYC Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/detail/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "detail", ""]
+            }
+          }
+        },
+        {
+          "name": "Submit KYC for Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/submit/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "submit", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Aadhaar - Old APIs (Combined)",
+      "item": [
+        {
+          "name": "Get Aadhaar (Old - Combined)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/aadhaar/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "aadhaar", ""]
+            },
+            "description": "Returns masked Aadhaar details (old API - still works)"
+          }
+        },
+        {
+          "name": "Submit Aadhaar Details",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aadhaar_number\": \"123456789012\",\n  \"aadhaar_name\": \"John Doe\",\n  \"aadhaar_dob\": \"1990-01-15\",\n  \"aadhaar_address\": \"123 Main Street, Mumbai\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/aadhaar/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "aadhaar", ""]
+            }
+          }
+        },
+        {
+          "name": "Upload Aadhaar Images",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "aadhaar_front_image",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "aadhaar_back_image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/aadhaar/upload/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "aadhaar", "upload", ""]
+            }
+          }
+        },
+        {
+          "name": "Update Aadhaar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "aadhaar_number",
+                  "value": "123456789012",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_name",
+                  "value": "John Doe Updated",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_dob",
+                  "value": "1990-01-15",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_address",
+                  "value": "Updated address",
+                  "type": "text"
+                },
+                {
+                  "key": "aadhaar_front_image",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "aadhaar_back_image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/aadhaar/update/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "aadhaar", "update", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Aadhaar - New APIs (Step-wise)",
+      "item": [
+        {
+          "name": "Get Aadhaar Details (New - Unmasked)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/aadhaar/details/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "aadhaar", "details", ""]
+            },
+            "description": "Returns both masked and unmasked Aadhaar details"
+          }
+        },
+        {
+          "name": "Get Aadhaar Images (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/aadhaar/images/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "aadhaar", "images", ""]
+            },
+            "description": "Returns only Aadhaar image URLs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PAN - Old APIs (Combined)",
+      "item": [
+        {
+          "name": "Get PAN (Old - Combined)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/pan/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "pan", ""]
+            },
+            "description": "Returns masked PAN details (old API - still works)"
+          }
+        },
+        {
+          "name": "Submit PAN Details",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan_number\": \"ABCDE1234F\",\n  \"pan_name\": \"John Doe\",\n  \"pan_dob\": \"1990-01-15\",\n  \"pan_father_name\": \"Father Name\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/pan/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "pan", ""]
+            }
+          }
+        },
+        {
+          "name": "Upload PAN Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "pan_image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/pan/upload/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "pan", "upload", ""]
+            }
+          }
+        },
+        {
+          "name": "Update PAN",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "pan_number",
+                  "value": "ABCDE1234F",
+                  "type": "text"
+                },
+                {
+                  "key": "pan_name",
+                  "value": "John Doe Updated",
+                  "type": "text"
+                },
+                {
+                  "key": "pan_dob",
+                  "value": "1990-01-15",
+                  "type": "text"
+                },
+                {
+                  "key": "pan_father_name",
+                  "value": "Updated Father Name",
+                  "type": "text"
+                },
+                {
+                  "key": "pan_image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/pan/update/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "pan", "update", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PAN - New APIs (Step-wise)",
+      "item": [
+        {
+          "name": "Get PAN Details (New - Unmasked)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/pan/details/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "pan", "details", ""]
+            },
+            "description": "Returns both masked and unmasked PAN details"
+          }
+        },
+        {
+          "name": "Get PAN Image (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/identity/pan/image/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "identity", "pan", "image", ""]
+            },
+            "description": "Returns only PAN image URL"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Business Details",
+      "item": [
+        {
+          "name": "Get Business Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/business/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "business", ""]
+            }
+          }
+        },
+        {
+          "name": "Submit Business Details",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_name\": \"My Business Pvt Ltd\",\n  \"business_type\": \"Retail\",\n  \"business_phone\": \"9876543210\",\n  \"business_email\": \"business@example.com\",\n  \"address_line_1\": \"123 Main Street\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"400001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/business/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "business", ""]
+            }
+          }
+        },
+        {
+          "name": "Update Business Details",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_name\": \"My Business Pvt Ltd Updated\",\n  \"business_type\": \"Retail\",\n  \"business_phone\": \"9876543210\",\n  \"business_email\": \"business@example.com\",\n  \"address_line_1\": \"123 Main Street\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"400001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/business/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "business", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verification Images - Old APIs (Combined)",
+      "item": [
+        {
+          "name": "Get Verification Images (Old - Combined)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", ""]
+            },
+            "description": "Returns all verification images (old API - still works)"
+          }
+        },
+        {
+          "name": "Upload Selfie",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "selfie_image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/selfie/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", "selfie", ""]
+            }
+          }
+        },
+        {
+          "name": "Upload Office Photos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "office_sitting_image",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "office_door_image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/office/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", "office", ""]
+            }
+          }
+        },
+        {
+          "name": "Upload Address Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "address_proof_image",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "address_proof_type",
+                  "value": "Utility Bill",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/address-proof/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", "address-proof", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verification Images - New APIs (Step-wise)",
+      "item": [
+        {
+          "name": "Get Selfie Image (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/selfie/get/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", "selfie", "get", ""]
+            },
+            "description": "Returns only selfie image URL"
+          }
+        },
+        {
+          "name": "Get Office Images (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/office/get/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", "office", "get", ""]
+            },
+            "description": "Returns only office image URLs"
+          }
+        },
+        {
+          "name": "Get Address Proof Image (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/verification/address-proof/get/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "verification", "address-proof", "get", ""]
+            },
+            "description": "Returns only address proof image URL"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Details - Old APIs (Combined)",
+      "item": [
+        {
+          "name": "Get Bank Details (Old - Combined)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/bank/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "bank", ""]
+            },
+            "description": "Returns masked bank details (old API - still works)"
+          }
+        },
+        {
+          "name": "Submit Bank Details",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "account_holder_name",
+                  "value": "John Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "account_number",
+                  "value": "1234567890123456",
+                  "type": "text"
+                },
+                {
+                  "key": "confirm_account_number",
+                  "value": "1234567890123456",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": "SBIN0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "account_type",
+                  "value": "SAVINGS",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_name",
+                  "value": "State Bank of India",
+                  "type": "text"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Main Branch",
+                  "type": "text"
+                },
+                {
+                  "key": "branch_address",
+                  "value": "123 Bank Street, Mumbai",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_document",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/bank/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "bank", ""]
+            }
+          }
+        },
+        {
+          "name": "Update Bank Details",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "account_holder_name",
+                  "value": "John Doe Updated",
+                  "type": "text"
+                },
+                {
+                  "key": "account_number",
+                  "value": "1234567890123456",
+                  "type": "text"
+                },
+                {
+                  "key": "confirm_account_number",
+                  "value": "1234567890123456",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": "SBIN0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "account_type",
+                  "value": "SAVINGS",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_name",
+                  "value": "State Bank of India",
+                  "type": "text"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Main Branch",
+                  "type": "text"
+                },
+                {
+                  "key": "branch_address",
+                  "value": "Updated address",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_document",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/kyc/bank/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "bank", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Details - New APIs (Step-wise)",
+      "item": [
+        {
+          "name": "Get Bank Details (New - Unmasked)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/bank/details/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "bank", "details", ""]
+            },
+            "description": "Returns both masked and unmasked bank account details"
+          }
+        },
+        {
+          "name": "Get Bank Document (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/bank/document/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "bank", "document", ""]
+            },
+            "description": "Returns only bank document URL"
+          }
+        }
+      ]
+    }
+  ]
+}

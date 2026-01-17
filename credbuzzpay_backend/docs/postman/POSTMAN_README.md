@@ -5,8 +5,26 @@ The Postman collection and environment files are located in:
 ```
 docs/postman/
 ├── CredBuzz_Backend_API.postman_collection.json
-└── CredBuzz_Backend_Local.postman_environment.json
+├── CredBuzz_Backend_Local.postman_environment.json
+├── CredBuzz_Password_Reset_Flows.postman_collection.json  ← NEW
+└── ... other collections
 ```
+
+## 🆕 New: Password Reset & Change Flows Collection
+
+**File**: `CredBuzz_Password_Reset_Flows.postman_collection.json`
+
+Implements the new OTP-First security model with two distinct flows:
+
+1. **FLOW A: Forgot Password (Unauthenticated)**
+   - For users who forgot password at login
+   - Uses: OTP → reset_token → new password
+   
+2. **FLOW B: Profile Password Change (Authenticated)**
+   - For logged-in users changing password
+   - Uses: access_token + OTP → new password
+
+📖 **Full Documentation**: See `docs/PASSWORD_RESET_FLOWS.md`
 
 ## Collection Details
 - **Workspace**: CredBuzz Backend
@@ -18,6 +36,8 @@ docs/postman/
 - **Progressive Lockout**: 2min → 5min → 10min → 30min → 60min → blocked
 - **JWT with Enhanced Payload**: Includes user_code, user_role, app_access, feature_access
 - **30-minute Inactivity Timeout**: Token invalidates after inactivity
+- **🆕 OTP-First Password Reset**: Step-up authentication for sensitive operations
+- **🆕 Separate Unauthenticated & Authenticated Flows**: Different security models for different contexts
 
 ## ⚠️ Important: Testing Locally
 The Postman Cloud Collection Runner **cannot** reach `localhost` or `127.0.0.1`. To test the API:
@@ -25,9 +45,10 @@ The Postman Cloud Collection Runner **cannot** reach `localhost` or `127.0.0.1`.
 ### Option 1: Use Postman Desktop App
 1. Open Postman Desktop App
 2. Import the collection from `docs/postman/CredBuzz_Backend_API.postman_collection.json`
-3. Import the environment from `docs/postman/CredBuzz_Backend_Local.postman_environment.json`
-4. Select the "CredBuzz Backend - Local" environment
-5. Run requests individually or use the Collection Runner
+3. Import the password flows collection from `docs/postman/CredBuzz_Password_Reset_Flows.postman_collection.json`
+4. Import the environment from `docs/postman/CredBuzz_Backend_Local.postman_environment.json`
+5. Select the "CredBuzz Backend - Local" environment
+6. Run requests individually or use the Collection Runner
 
 ### Option 2: Use a Public URL (for Cloud Testing)
 If you want to use Postman's cloud runner, you need to:

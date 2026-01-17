@@ -272,6 +272,127 @@ class IdentityProofSerializer(serializers.ModelSerializer):
         return None
 
 
+class AadhaarDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for Aadhaar details with both masked and unmasked values."""
+    aadhaar_number_masked = serializers.CharField(source='aadhaar_masked', read_only=True)
+    aadhaar_number = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_aadhaar_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='aadhaar_verified', read_only=True)
+    submitted_at = serializers.DateTimeField(source='aadhaar_submitted_at', read_only=True)
+    
+    class Meta:
+        model = IdentityProof
+        fields = [
+            'aadhaar_number', 'aadhaar_number_masked', 'aadhaar_name', 
+            'aadhaar_dob', 'aadhaar_address', 'is_complete', 'is_verified', 
+            'submitted_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_aadhaar_number(self, obj):
+        """Return unmasked Aadhaar number for verification."""
+        return obj.aadhaar_number if obj.aadhaar_number else None
+
+
+class AadhaarImagesResponseSerializer(serializers.ModelSerializer):
+    """Serializer for Aadhaar images only."""
+    aadhaar_front_url = serializers.SerializerMethodField()
+    aadhaar_back_url = serializers.SerializerMethodField()
+    has_images = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = IdentityProof
+        fields = ['aadhaar_front_url', 'aadhaar_back_url', 'has_images', 'updated_at']
+        read_only_fields = fields
+    
+    def get_aadhaar_front_url(self, obj):
+        request = self.context.get('request')
+        if obj.aadhaar_front_image:
+            if request:
+                return request.build_absolute_uri(obj.aadhaar_front_image.url)
+            return obj.aadhaar_front_image.url
+        return None
+    
+    def get_aadhaar_back_url(self, obj):
+        request = self.context.get('request')
+        if obj.aadhaar_back_image:
+            if request:
+                return request.build_absolute_uri(obj.aadhaar_back_image.url)
+            return obj.aadhaar_back_image.url
+        return None
+    
+    def get_has_images(self, obj):
+        return bool(obj.aadhaar_front_image and obj.aadhaar_back_image)
+
+
+class PANDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for PAN details with both masked and unmasked values."""
+    pan_number_masked = serializers.CharField(source='pan_masked', read_only=True)
+    pan_number = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_pan_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='pan_verified', read_only=True)
+    submitted_at = serializers.DateTimeField(source='pan_submitted_at', read_only=True)
+    
+    class Meta:
+        model = IdentityProof
+        fields = [
+            'pan_number', 'pan_number_masked', 'pan_name', 'pan_dob', 
+            'pan_father_name', 'is_complete', 'is_verified', 'submitted_at', 
+            'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_pan_number(self, obj):
+        """Return unmasked PAN number for verification."""
+        return obj.pan_number if obj.pan_number else None
+
+
+class PANImageResponseSerializer(serializers.ModelSerializer):
+    """Serializer for PAN image only."""
+    pan_image_url = serializers.SerializerMethodField()
+    has_image = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = IdentityProof
+        fields = ['pan_image_url', 'has_image', 'updated_at']
+        read_only_fields = fields
+    
+    def get_pan_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.pan_image:
+            if request:
+                return request.build_absolute_uri(obj.pan_image.url)
+            return obj.pan_image.url
+        return None
+    
+    def get_has_image(self, obj):
+        return bool(obj.pan_image)
+    
+    def get_aadhaar_front_url(self, obj):
+        if obj.aadhaar_front_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.aadhaar_front_image.url)
+            return obj.aadhaar_front_image.url
+        return None
+    
+    def get_aadhaar_back_url(self, obj):
+        if obj.aadhaar_back_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.aadhaar_back_image.url)
+            return obj.aadhaar_back_image.url
+        return None
+    
+    def get_pan_image_url(self, obj):
+        if obj.pan_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.pan_image.url)
+            return obj.pan_image.url
+        return None
+
+
 # Admin serializer with unmasked data
 class IdentityProofAdminSerializer(serializers.ModelSerializer):
     """Serializer for Identity Proof with full data for admin."""
@@ -574,6 +695,49 @@ class BankDetailsSerializer(serializers.ModelSerializer):
             return obj.bank_document.url
         return None
 
+class BankDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for bank details with both masked and unmasked values."""
+    account_number_masked = serializers.CharField(read_only=True)
+    account_number = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(read_only=True)
+    is_verified = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = BankDetails
+        fields = [
+            'account_holder_name', 'account_number', 'account_number_masked',
+            'ifsc_code', 'account_type', 'bank_name', 'branch_name',
+            'branch_address', 'is_complete', 'is_verified',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_account_number(self, obj):
+        """Return unmasked account number for verification."""
+        return obj.account_number if obj.account_number else None
+
+
+class BankDocumentResponseSerializer(serializers.ModelSerializer):
+    """Serializer for bank document image only."""
+    bank_document_url = serializers.SerializerMethodField()
+    has_document = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BankDetails
+        fields = ['bank_document_url', 'has_document', 'updated_at']
+        read_only_fields = fields
+    
+    def get_bank_document_url(self, obj):
+        request = self.context.get('request')
+        if obj.bank_document:
+            if request:
+                return request.build_absolute_uri(obj.bank_document.url)
+            return obj.bank_document.url
+        return None
+    
+    def get_has_document(self, obj):
+        return bool(obj.bank_document)
+
 
 class BankDetailsAdminSerializer(serializers.ModelSerializer):
     """Serializer for Bank Details with full data for admin."""
@@ -600,6 +764,232 @@ class BankDetailsAdminSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.bank_document.url)
             return obj.bank_document.url
         return None
+
+
+# =============================================================================
+# STEP-WISE GET API SERIALIZERS
+# =============================================================================
+
+class AadhaarDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for Aadhaar details with both masked and unmasked values."""
+    aadhaar_number_masked = serializers.CharField(source='aadhaar_masked', read_only=True)
+    aadhaar_number = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_aadhaar_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='aadhaar_verified', read_only=True)
+    submitted_at = serializers.DateTimeField(source='aadhaar_submitted_at', read_only=True)
+    
+    class Meta:
+        model = IdentityProof
+        fields = [
+            'aadhaar_number', 'aadhaar_number_masked', 'aadhaar_name', 
+            'aadhaar_dob', 'aadhaar_address', 'is_complete', 'is_verified', 
+            'submitted_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_aadhaar_number(self, obj):
+        """Return unmasked Aadhaar number for verification."""
+        return obj.aadhaar_number if obj.aadhaar_number else None
+
+
+class AadhaarImagesResponseSerializer(serializers.ModelSerializer):
+    """Serializer for Aadhaar images only."""
+    aadhaar_front_url = serializers.SerializerMethodField()
+    aadhaar_back_url = serializers.SerializerMethodField()
+    has_images = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = IdentityProof
+        fields = ['aadhaar_front_url', 'aadhaar_back_url', 'has_images', 'updated_at']
+        read_only_fields = fields
+    
+    def get_aadhaar_front_url(self, obj):
+        request = self.context.get('request')
+        if obj.aadhaar_front_image:
+            if request:
+                return request.build_absolute_uri(obj.aadhaar_front_image.url)
+            return obj.aadhaar_front_image.url
+        return None
+    
+    def get_aadhaar_back_url(self, obj):
+        request = self.context.get('request')
+        if obj.aadhaar_back_image:
+            if request:
+                return request.build_absolute_uri(obj.aadhaar_back_image.url)
+            return obj.aadhaar_back_image.url
+        return None
+    
+    def get_has_images(self, obj):
+        return bool(obj.aadhaar_front_image and obj.aadhaar_back_image)
+
+
+class PANDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for PAN details with both masked and unmasked values."""
+    pan_number_masked = serializers.CharField(source='pan_masked', read_only=True)
+    pan_number = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_pan_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='pan_verified', read_only=True)
+    submitted_at = serializers.DateTimeField(source='pan_submitted_at', read_only=True)
+    
+    class Meta:
+        model = IdentityProof
+        fields = [
+            'pan_number', 'pan_number_masked', 'pan_name', 'pan_dob', 
+            'pan_father_name', 'is_complete', 'is_verified', 'submitted_at', 
+            'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_pan_number(self, obj):
+        """Return unmasked PAN number for verification."""
+        return obj.pan_number if obj.pan_number else None
+
+
+class PANImageResponseSerializer(serializers.ModelSerializer):
+    """Serializer for PAN image only."""
+    pan_image_url = serializers.SerializerMethodField()
+    has_image = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = IdentityProof
+        fields = ['pan_image_url', 'has_image', 'updated_at']
+        read_only_fields = fields
+    
+    def get_pan_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.pan_image:
+            if request:
+                return request.build_absolute_uri(obj.pan_image.url)
+            return obj.pan_image.url
+        return None
+    
+    def get_has_image(self, obj):
+        return bool(obj.pan_image)
+
+
+class SelfieImageResponseSerializer(serializers.ModelSerializer):
+    """Serializer for selfie image only."""
+    selfie_url = serializers.SerializerMethodField()
+    has_image = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_selfie_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='selfie_verified', read_only=True)
+    
+    class Meta:
+        model = VerificationImages
+        fields = ['selfie_url', 'has_image', 'is_complete', 'is_verified', 'selfie_submitted_at', 'updated_at']
+        read_only_fields = fields
+    
+    def get_selfie_url(self, obj):
+        request = self.context.get('request')
+        if obj.selfie_image:
+            if request:
+                return request.build_absolute_uri(obj.selfie_image.url)
+            return obj.selfie_image.url
+        return None
+    
+    def get_has_image(self, obj):
+        return bool(obj.selfie_image)
+
+
+class OfficeImagesResponseSerializer(serializers.ModelSerializer):
+    """Serializer for office images only."""
+    office_sitting_url = serializers.SerializerMethodField()
+    office_door_url = serializers.SerializerMethodField()
+    has_images = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_office_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='office_photos_verified', read_only=True)
+    
+    class Meta:
+        model = VerificationImages
+        fields = ['office_sitting_url', 'office_door_url', 'has_images', 'is_complete', 'is_verified', 'office_photos_submitted_at', 'updated_at']
+        read_only_fields = fields
+    
+    def get_office_sitting_url(self, obj):
+        request = self.context.get('request')
+        if obj.office_sitting_image:
+            if request:
+                return request.build_absolute_uri(obj.office_sitting_image.url)
+            return obj.office_sitting_image.url
+        return None
+    
+    def get_office_door_url(self, obj):
+        request = self.context.get('request')
+        if obj.office_door_image:
+            if request:
+                return request.build_absolute_uri(obj.office_door_image.url)
+            return obj.office_door_image.url
+        return None
+    
+    def get_has_images(self, obj):
+        return bool(obj.office_sitting_image and obj.office_door_image)
+
+
+class AddressProofImageResponseSerializer(serializers.ModelSerializer):
+    """Serializer for address proof image only."""
+    address_proof_url = serializers.SerializerMethodField()
+    has_image = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(source='is_address_proof_complete', read_only=True)
+    is_verified = serializers.BooleanField(source='address_proof_verified', read_only=True)
+    
+    class Meta:
+        model = VerificationImages
+        fields = ['address_proof_url', 'address_proof_type', 'has_image', 'is_complete', 'is_verified', 'address_proof_submitted_at', 'updated_at']
+        read_only_fields = fields
+    
+    def get_address_proof_url(self, obj):
+        request = self.context.get('request')
+        if obj.address_proof_image:
+            if request:
+                return request.build_absolute_uri(obj.address_proof_image.url)
+            return obj.address_proof_image.url
+        return None
+    
+    def get_has_image(self, obj):
+        return bool(obj.address_proof_image)
+
+
+class BankDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for bank details with both masked and unmasked values."""
+    account_number_masked = serializers.CharField(read_only=True)
+    account_number = serializers.SerializerMethodField()
+    is_complete = serializers.BooleanField(read_only=True)
+    is_verified = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = BankDetails
+        fields = [
+            'account_holder_name', 'account_number', 'account_number_masked',
+            'ifsc_code', 'account_type', 'bank_name', 'branch_name',
+            'branch_address', 'is_complete', 'is_verified',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_account_number(self, obj):
+        """Return unmasked account number for verification."""
+        return obj.account_number if obj.account_number else None
+
+
+class BankDocumentResponseSerializer(serializers.ModelSerializer):
+    """Serializer for bank document image only."""
+    bank_document_url = serializers.SerializerMethodField()
+    has_document = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BankDetails
+        fields = ['bank_document_url', 'has_document', 'updated_at']
+        read_only_fields = fields
+    
+    def get_bank_document_url(self, obj):
+        request = self.context.get('request')
+        if obj.bank_document:
+            if request:
+                return request.build_absolute_uri(obj.bank_document.url)
+            return obj.bank_document.url
+        return None
+    
+    def get_has_document(self, obj):
+        return bool(obj.bank_document)
 
 
 # =============================================================================

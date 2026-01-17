@@ -59,27 +59,44 @@ urlpatterns = [
     path('detail/', views.KYCDetailView.as_view(), name='kyc-detail'),
     path('submit/', views.KYCSubmitView.as_view(), name='kyc-submit'),
     
-    # Identity Proof - Aadhaar
+    # Identity Proof - Aadhaar (POST/PUT endpoints)
     path('identity/aadhaar/', views.AadhaarDetailsView.as_view(), name='aadhaar-details'),
     path('identity/aadhaar/upload/', views.AadhaarUploadView.as_view(), name='aadhaar-upload'),
     path('identity/aadhaar/update/', views.AadhaarUpdateView.as_view(), name='aadhaar-update'),
     
-    # Identity Proof - PAN
+    # Identity Proof - Aadhaar (GET endpoints - Step-wise)
+    path('identity/aadhaar/details/', views.GetAadhaarDetailsView.as_view(), name='get-aadhaar-details'),
+    path('identity/aadhaar/images/', views.GetAadhaarImagesView.as_view(), name='get-aadhaar-images'),
+    
+    # Identity Proof - PAN (POST/PUT endpoints)
     path('identity/pan/', views.PANDetailsView.as_view(), name='pan-details'),
     path('identity/pan/upload/', views.PANUploadView.as_view(), name='pan-upload'),
     path('identity/pan/update/', views.PANUpdateView.as_view(), name='pan-update'),
     
+    # Identity Proof - PAN (GET endpoints - Step-wise)
+    path('identity/pan/details/', views.GetPANDetailsView.as_view(), name='get-pan-details'),
+    path('identity/pan/image/', views.GetPANImageView.as_view(), name='get-pan-image'),
+    
     # Business Details
     path('business/', views.BusinessDetailsView.as_view(), name='business-details'),
     
-    # Verification Images
+    # Verification Images (POST endpoints)
     path('verification/', views.VerificationImagesView.as_view(), name='verification-images'),
     path('verification/selfie/', views.SelfieUploadView.as_view(), name='selfie-upload'),
     path('verification/office/', views.OfficePhotosUploadView.as_view(), name='office-upload'),
     path('verification/address-proof/', views.AddressProofUploadView.as_view(), name='address-proof-upload'),
     
-    # Bank Details
+    # Verification Images (GET endpoints - Step-wise)
+    path('verification/selfie/get/', views.GetSelfieImageView.as_view(), name='get-selfie-image'),
+    path('verification/office/get/', views.GetOfficeImagesView.as_view(), name='get-office-images'),
+    path('verification/address-proof/get/', views.GetAddressProofImageView.as_view(), name='get-address-proof-image'),
+    
+    # Bank Details (POST/PUT endpoints)
     path('bank/', views.BankDetailsView.as_view(), name='bank-details'),
+    
+    # Bank Details (GET endpoints - Step-wise)
+    path('bank/details/', views.GetBankDetailsView.as_view(), name='get-bank-details'),
+    path('bank/document/', views.GetBankDocumentView.as_view(), name='get-bank-document'),
     
     # Admin Endpoints
     path('admin/applications/', views.KYCAdminListView.as_view(), name='admin-list'),
