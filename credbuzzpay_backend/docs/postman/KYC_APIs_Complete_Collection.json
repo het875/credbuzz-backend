@@ -455,10 +455,10 @@
       ]
     },
     {
-      "name": "Business Details",
+      "name": "Business Details - Old APIs (Combined)",
       "item": [
         {
-          "name": "Get Business Details",
+          "name": "Get Business Details (Old - Combined)",
           "request": {
             "method": "GET",
             "header": [
@@ -472,7 +472,8 @@
               "raw": "{{base_url}}/kyc/business/",
               "host": ["{{base_url}}"],
               "path": ["kyc", "business", ""]
-            }
+            },
+            "description": "Returns business details (old API - still works)"
           }
         },
         {
@@ -527,6 +528,30 @@
               "host": ["{{base_url}}"],
               "path": ["kyc", "business", ""]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Business Details - New APIs (Step-wise)",
+      "item": [
+        {
+          "name": "Get Business Details (New - Separate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/kyc/business/details/",
+              "host": ["{{base_url}}"],
+              "path": ["kyc", "business", "details", ""]
+            },
+            "description": "Returns only business details (step-wise GET API)"
           }
         }
       ]

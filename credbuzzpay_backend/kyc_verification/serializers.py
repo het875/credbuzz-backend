@@ -480,6 +480,22 @@ class BusinessDetailsSerializer(serializers.ModelSerializer):
         return value
 
 
+class BusinessDetailsResponseSerializer(serializers.ModelSerializer):
+    """Serializer for Business Details GET response (step-wise)."""
+    full_address = serializers.CharField(read_only=True)
+    is_complete = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = BusinessDetails
+        fields = [
+            'business_name', 'business_type', 'business_phone', 'business_email',
+            'address_line_1', 'address_line_2', 'address_line_3', 'landmark',
+            'city', 'district', 'state', 'pincode', 'country',
+            'full_address', 'is_complete', 'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+
 class BusinessDetailsInputSerializer(serializers.Serializer):
     """Serializer for Business Details input."""
     business_name = serializers.CharField(max_length=200)

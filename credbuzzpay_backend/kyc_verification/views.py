@@ -48,7 +48,7 @@ from .serializers import (
     PANDetailsResponseSerializer, PANImageResponseSerializer,
     SelfieImageResponseSerializer, OfficeImagesResponseSerializer,
     AddressProofImageResponseSerializer, BankDetailsResponseSerializer,
-    BankDocumentResponseSerializer
+    BankDocumentResponseSerializer, BusinessDetailsResponseSerializer
 )
 from .permissions import IsKYCOwner, IsKYCAdmin, CanAccessKYCStep
 
@@ -1247,6 +1247,38 @@ class GetBankDocumentView(APIView):
         
         bank_details = user.kyc_application.bank_details
         serializer = BankDocumentResponseSerializer(bank_details, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class GetBusinessDetailsView(APIView):
+    """
+    Get business details (step-wise GET API).
+    
+    GET /api/kyc/business/details/
+    
+    Returns:
+    - business_name, business_type, business_phone, business_email
+    - address_line_1, address_line_2, address_line_3, landmark
+    - city, district, state, pincode, country
+    - full_address, is_complete
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        if not hasattr(user, 'kyc_application'):
+            return Response({
+                'success': False,
+                'message': 'No KYC application found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        business_details = user.kyc_application.business_details
+        serializer = BusinessDetailsResponseSerializer(business_details, context={'request': request})
         
         return Response({
             'success': True,

@@ -98,6 +98,9 @@ urlpatterns = [
     path('bank/details/', views.GetBankDetailsView.as_view(), name='get-bank-details'),
     path('bank/document/', views.GetBankDocumentView.as_view(), name='get-bank-document'),
     
+    # Business Details (GET endpoint - Step-wise)
+    path('business/details/', views.GetBusinessDetailsView.as_view(), name='get-business-details'),
+    
     # Admin Endpoints
     path('admin/applications/', views.KYCAdminListView.as_view(), name='admin-list'),
     path('admin/applications/<str:application_id>/', views.KYCAdminDetailView.as_view(), name='admin-detail'),
